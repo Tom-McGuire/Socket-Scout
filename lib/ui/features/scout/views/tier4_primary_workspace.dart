@@ -417,34 +417,55 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
   }
 
   Widget _buildEmptyState(BuildContext context, SocketScoutViewModel vm) {
+    final isListening = vm.isListening;
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.radar,
-            size: 64,
-            color: AppTheme.primaryAccent.withValues(alpha: 0.6),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isListening
+                  ? AppTheme.success.withValues(alpha: 0.12)
+                  : AppTheme.primaryAccent.withValues(alpha: 0.12),
+              border: Border.all(
+                color: isListening
+                    ? AppTheme.success.withValues(alpha: 0.35)
+                    : AppTheme.primaryAccent.withValues(alpha: 0.35),
+                width: 2,
+              ),
+            ),
+            child: Icon(
+              isListening ? Icons.settings_input_antenna : Icons.radar,
+              size: 56,
+              color: isListening ? AppTheme.success : AppTheme.primaryAccent.withValues(alpha: 0.8),
+            ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'No Switch Discovery Packets Received',
-            style: TextStyle(
+          const SizedBox(height: 20),
+          Text(
+            isListening
+                ? 'Listening for Switch Announcements...'
+                : 'No Switch Discovery Packets Received',
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
           const SizedBox(height: 8),
-          const SizedBox(
-            width: 480,
+          SizedBox(
+            width: 520,
             child: Text(
-              'Connect your Ethernet cable to a managed switch port and click "Start Listening", or load built-in demo packets to explore features.',
+              isListening
+                  ? 'Listening on ${vm.selectedAdapter?.name ?? 'selected adapter'}. Switches transmit LLDP and CDP frames every 30 to 60 seconds (or immediately on link up). Waiting for frames...'
+                  : 'Connect your Ethernet cable to a managed switch port and click "Start Listening", or load built-in demo packets to explore features.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
                 color: Colors.white60,
-                height: 1.4,
+                height: 1.5,
               ),
             ),
           ),
@@ -454,14 +475,20 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             children: [
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.success,
+                  backgroundColor: isListening ? AppTheme.error : AppTheme.success,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
-                icon: const Icon(Icons.play_arrow, size: 16),
-                label: const Text('START LISTENING', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                onPressed: () => vm.startListening(),
+                icon: Icon(
+                  isListening ? Icons.stop : Icons.play_arrow,
+                  size: 16,
+                ),
+                label: Text(
+                  isListening ? 'STOP LISTENING' : 'START LISTENING',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                onPressed: () => vm.toggleListening(),
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
@@ -471,7 +498,10 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
                 icon: const Icon(Icons.science_outlined, size: 16, color: Colors.amber),
-                label: const Text('LOAD DEMO DATA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70)),
+                label: const Text(
+                  'LOAD DEMO DATA',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                ),
                 onPressed: () => vm.loadDemoData(),
               ),
             ],

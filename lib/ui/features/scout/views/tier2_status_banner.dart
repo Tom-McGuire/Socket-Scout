@@ -89,15 +89,19 @@ class Tier2StatusBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              '•  Waiting for switch multicast frames (LLDP / CDP announce every 30-60s)  •  Elapsed: $mins:$secs  •  Frames: ${vm.framesReceived}',
-              style: const TextStyle(
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: Colors.white70,
+            Expanded(
+              child: Text(
+                '•  Waiting for switch multicast frames (LLDP / CDP announce every 30-60s)  •  Elapsed: $mins:$secs  •  Frames: ${vm.framesReceived}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  color: Colors.white70,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 12),
             if (vm.latestDiscovery != null)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

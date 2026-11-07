@@ -16,6 +16,7 @@ enum CaptureStatus {
 
 class CaptureService {
   Process? _process;
+  bool _intentionalStop = false;
   StreamSubscription<List<int>>? _stdoutSub;
   StreamSubscription<List<int>>? _stderrSub;
   final StreamingPcapParser _pcapParser = StreamingPcapParser();
@@ -87,8 +88,12 @@ class CaptureService {
   Future<bool> startCapture({
     required String interfaceName,
   }) async {
-    await stopCapture();
+    if (_process != null) {
+      await stopCapture();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
 
+    _intentionalStop = false;
     _setStatus(CaptureStatus.starting);
     _lastError = null;
     _framesReceived = 0;
@@ -136,25 +141,31 @@ class CaptureService {
     debugPrint('Executing capture: $_generatedCommandLine');
 
     try {
-      _process = await Process.start(binary, args);
+      final spawnedProcess = await Process.start(binary, args);
+      _process = spawnedProcess;
       _setStatus(CaptureStatus.listening);
 
-      _stdoutSub = _process!.stdout.listen(
+      _stdoutSub = spawnedProcess.stdout.listen(
         (chunk) => _handleDataChunk(chunk, interfaceName),
         onError: (e) {
-          debugPrint('Capture stdout error: $e');
-          _lastError = 'Capture read error: $e';
-          _setStatus(CaptureStatus.error);
+          if (!_intentionalStop && _process == spawnedProcess) {
+            debugPrint('Capture stdout error: $e');
+            _lastError = 'Capture read error: $e';
+            _setStatus(CaptureStatus.error);
+          }
         },
         onDone: () {
           debugPrint('Capture stdout closed.');
-          if (_status == CaptureStatus.listening) {
+          if (!_intentionalStop &&
+              _process == spawnedProcess &&
+              _status == CaptureStatus.listening) {
             _setStatus(CaptureStatus.stopped);
           }
         },
       );
 
-      _stderrSub = _process!.stderr.listen((errBytes) {
+      _stderrSub = spawnedProcess.stderr.listen((errBytes) {
+        if (_intentionalStop || _process != spawnedProcess) return;
         final errText = String.fromCharCodes(errBytes);
         debugPrint('Capture stderr: $errText');
         if (errText.contains('permission') ||
@@ -171,14 +182,23 @@ class CaptureService {
         }
       });
 
-      _process!.exitCode.then((code) {
+      spawnedProcess.exitCode.then((code) {
         debugPrint('Capture process exited with code $code');
-        if (_status == CaptureStatus.listening) {
-          if (code != 0 && _lastError == null) {
-            _lastError = 'Capture exited with code $code';
-            _setStatus(CaptureStatus.error);
-          } else {
-            _setStatus(CaptureStatus.stopped);
+        if (_process == spawnedProcess && !_intentionalStop) {
+          if (_status == CaptureStatus.listening) {
+            // Signal codes: -15 (SIGTERM), -2 (SIGINT), -9 (SIGKILL), 143, 130, -1
+            final isKilledBySignal = code == -15 ||
+                code == -2 ||
+                code == -9 ||
+                code == -1 ||
+                code == 143 ||
+                code == 130;
+            if (code != 0 && !isKilledBySignal && _lastError == null) {
+              _lastError = 'Capture process exited unexpectedly with code $code';
+              _setStatus(CaptureStatus.error);
+            } else {
+              _setStatus(CaptureStatus.stopped);
+            }
           }
         }
       });
@@ -233,11 +253,13 @@ class CaptureService {
   }
 
   Future<void> stopCapture() async {
-    if (_process != null) {
+    _intentionalStop = true;
+    final proc = _process;
+    _process = null;
+    if (proc != null) {
       try {
-        _process!.kill(ProcessSignal.sigterm);
+        proc.kill(ProcessSignal.sigterm);
       } catch (_) {}
-      _process = null;
     }
     await _stdoutSub?.cancel();
     _stdoutSub = null;
@@ -245,6 +267,8 @@ class CaptureService {
     _stderrSub = null;
     _setStatus(CaptureStatus.stopped);
   }
+
+  void protectedSetStatus(CaptureStatus s) => _setStatus(s);
 
   void _setStatus(CaptureStatus s) {
     _status = s;

@@ -139,6 +139,7 @@ class SocketScoutViewModel extends ChangeNotifier {
   }
 
   Future<void> startListening() async {
+    if (_isListening) return;
     if (_selectedAdapter == null) return;
     _lastError = null;
     _elapsedSeconds = 0;
