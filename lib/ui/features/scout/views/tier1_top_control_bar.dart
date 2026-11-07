@@ -26,19 +26,28 @@ class Tier1TopControlBar extends StatelessWidget {
       child: Row(
         children: [
           // App Logo & Title
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryAccent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: AppTheme.primaryAccent.withValues(alpha: 0.3),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              'assets/app_icon.png',
+              width: 32,
+              height: 32,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppTheme.primaryAccent.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.hub,
+                  size: 20,
+                  color: AppTheme.primaryAccent,
+                ),
               ),
-            ),
-            child: const Icon(
-              Icons.hub,
-              size: 20,
-              color: AppTheme.primaryAccent,
             ),
           ),
           const SizedBox(width: 12),
