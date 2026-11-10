@@ -6,7 +6,10 @@ import 'package:provider/provider.dart';
 import '../../../../domain/models/network_adapter_info.dart';
 import '../../../theme/app_theme.dart';
 import '../view_models/socket_scout_view_model.dart';
+import 'dialogs/device_library_dialog.dart';
 
+/// Tier-1 Top Control Bar conforming strictly to the Network Suite
+/// 5-Zone Standardization Specification (52px fixed height, canonical layout).
 class Tier1TopControlBar extends StatelessWidget {
   const Tier1TopControlBar({super.key});
 
@@ -18,47 +21,53 @@ class Tier1TopControlBar extends StatelessWidget {
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: const BoxDecoration(
-        color: AppTheme.surface,
+        color: Color(0xFF1E1E1E),
         border: Border(
-          bottom: BorderSide(color: AppTheme.border, width: 1),
+          bottom: BorderSide(color: Color(0xFF2C2C2C), width: 1),
         ),
       ),
       child: Row(
         children: [
-          // App Logo & Title
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              'assets/app_icon.png',
-              width: 32,
-              height: 32,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppTheme.primaryAccent.withValues(alpha: 0.3),
+          // ==================== ZONE 1: BRANDING ====================
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'assets/app_icon.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 32,
+                  height: 32,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: AppTheme.primaryAccent.withValues(alpha: 0.3),
+                    ),
                   ),
-                ),
-                child: const Icon(
-                  Icons.hub,
-                  size: 20,
-                  color: AppTheme.primaryAccent,
+                  child: const Icon(
+                    Icons.hub,
+                    size: 18,
+                    color: AppTheme.primaryAccent,
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Column(
+          const SizedBox(width: 10),
+          const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'SOCKET SCOUT',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.8,
                   color: Colors.white,
@@ -67,111 +76,93 @@ class Tier1TopControlBar extends StatelessWidget {
               Text(
                 'Switch Port Identifier (LLDP / CDP)',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   color: Colors.white54,
                 ),
               ),
             ],
           ),
+          const SizedBox(width: 16),
 
-          const Spacer(),
-
-          // Interface Selector Dropdown
+          // ==================== ZONE 2: INTERFACE & TARGET ====================
           Container(
-            height: 34,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            height: 32,
+            width: 220,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color: AppTheme.inputFill,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: AppTheme.borderInput),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.settings_ethernet, size: 16, color: Colors.white70),
-                const SizedBox(width: 8),
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<NetworkAdapterInfo>(
-                    value: vm.selectedAdapter,
-                    dropdownColor: AppTheme.surfaceContainer,
-                    icon: const Icon(Icons.arrow_drop_down, size: 18),
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      color: Colors.white,
+                const SizedBox(width: 6),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<NetworkAdapterInfo>(
+                      value: vm.selectedAdapter,
+                      dropdownColor: AppTheme.surfaceContainer,
+                      isDense: true,
+                      isExpanded: true,
+                      icon: const Icon(Icons.arrow_drop_down, size: 18),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: Colors.white,
+                      ),
+                      items: vm.adapters.map((adapter) {
+                        return DropdownMenuItem<NetworkAdapterInfo>(
+                          value: adapter,
+                          child: Text(
+                            adapter.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: vm.isListening ? null : (a) => vm.selectAdapter(a),
                     ),
-                    items: vm.adapters.map((adapter) {
-                      return DropdownMenuItem<NetworkAdapterInfo>(
-                        value: adapter,
-                        child: Text(adapter.label),
-                      );
-                    }).toList(),
-                    onChanged: vm.isListening ? null : (a) => vm.selectAdapter(a),
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Refresh Network Adapters',
-                  icon: const Icon(Icons.refresh, size: 14, color: Colors.white60),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  onPressed: vm.isListening ? null : () => vm.refreshAdapters(),
                 ),
               ],
             ),
           ),
-
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: 'Refresh Interfaces',
+            icon: const Icon(Icons.refresh, size: 16, color: Colors.white60),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+            onPressed: vm.isListening ? null : () => vm.refreshAdapters(),
+          ),
           const SizedBox(width: 12),
 
-          // Start / Stop Listening Button
+          // ==================== ZONE 3: PRIMARY ACTIONS ====================
           FilledButton.icon(
+            onPressed: () => vm.toggleListening(),
             style: FilledButton.styleFrom(
-              backgroundColor: vm.isListening ? AppTheme.error : AppTheme.success,
+              backgroundColor: vm.isListening
+                  ? const Color(0xFFEF4444) // Active Red
+                  : const Color(0xFF10B981), // Idle Emerald Green (from ARP Scout)
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
             icon: Icon(
               vm.isListening ? Icons.stop : Icons.play_arrow,
-              size: 16,
+              size: 17,
             ),
             label: Text(
               vm.isListening ? 'STOP LISTENING' : 'START LISTENING',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
-            onPressed: () => vm.toggleListening(),
           ),
 
-          const SizedBox(width: 8),
+          const Spacer(),
 
-          // Demo Mode Button
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              side: const BorderSide(color: AppTheme.borderInput),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-            icon: const Icon(Icons.science_outlined, size: 15, color: Colors.amber),
-            label: const Text(
-              'DEMO PRESETS',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70),
-            ),
-            onPressed: () {
-              vm.loadDemoData();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Injected Cisco, Netgear & Aruba L2 discovery demo packets'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(width: 8),
-
+          // ==================== ZONE 4: ECOSYSTEM & DEMO ====================
           // Open PCAP File Button
-          IconButton(
-            tooltip: 'Open PCAP / PCAPNG file',
-            icon: const Icon(Icons.folder_open, size: 18, color: Colors.white70),
+          OutlinedButton.icon(
             onPressed: () async {
               final result = await FilePicker.pickFiles(
                 type: FileType.custom,
@@ -187,13 +178,67 @@ class Tier1TopControlBar extends StatelessWidget {
                 }
               }
             },
+            icon: const Icon(Icons.folder_open, size: 15),
+            label: const Text('Open PCAP', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
           ),
+          const SizedBox(width: 8),
 
-          // Export Popup Menu
+          // Device Library Button
+          OutlinedButton.icon(
+            onPressed: () => DeviceLibraryDialog.show(context),
+            icon: const Icon(Icons.devices, size: 15),
+            label: const Text('Device Library', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Load Demo Button
+          OutlinedButton.icon(
+            onPressed: vm.isListening
+                ? null
+                : () {
+                    vm.loadDemoData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Injected Cisco, Netgear & Aruba L2 discovery demo packets'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+            icon: const Icon(Icons.play_circle_outline, size: 15),
+            label: const Text('Load Demo', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // ==================== ZONE 5: CLEAR & EXPORT ====================
+          OutlinedButton.icon(
+            onPressed: (vm.isListening || vm.totalDiscoveriesCount == 0)
+                ? null
+                : () => vm.clearAll(),
+            icon: const Icon(Icons.delete_sweep_outlined, size: 15),
+            label: const Text('Clear', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red.shade300,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          const SizedBox(width: 8),
+
           PopupMenuButton<String>(
-            tooltip: 'Export Discovery Data',
-            icon: const Icon(Icons.file_download_outlined, size: 18, color: Colors.white70),
-            color: AppTheme.surfaceContainer,
+            tooltip: 'Export',
+            enabled: vm.totalDiscoveriesCount > 0,
             onSelected: (val) {
               if (val == 'csv') {
                 final text = vm.exportCsv();
@@ -215,8 +260,8 @@ class Tier1TopControlBar extends StatelessWidget {
                 );
               }
             },
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(
+            itemBuilder: (ctx) => const [
+              PopupMenuItem(
                 value: 'report',
                 child: Row(
                   children: [
@@ -226,7 +271,7 @@ class Tier1TopControlBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'csv',
                 child: Row(
                   children: [
@@ -236,7 +281,7 @@ class Tier1TopControlBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'json',
                 child: Row(
                   children: [
@@ -247,13 +292,22 @@ class Tier1TopControlBar extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-
-          // Clear Button
-          IconButton(
-            tooltip: 'Clear Discovery History',
-            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white54),
-            onPressed: vm.totalDiscoveriesCount == 0 ? null : () => vm.clearAll(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF2C2C2C)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.download, size: 15, color: Colors.white70),
+                  SizedBox(width: 6),
+                  Text('Export', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                  Icon(Icons.arrow_drop_down, size: 14, color: Colors.white70),
+                ],
+              ),
+            ),
           ),
         ],
       ),

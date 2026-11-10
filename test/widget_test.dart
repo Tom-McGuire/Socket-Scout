@@ -32,8 +32,9 @@ class FakeCaptureService extends CaptureService {
 void main() {
   testWidgets('SocketScoutScreen renders 5-tier layout and empty state',
       (WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
 
     final dbService = SwitchDatabaseService();
     dbService.initInMemory();
@@ -66,10 +67,13 @@ void main() {
 
     expect(find.text('SOCKET SCOUT'), findsOneWidget);
     expect(find.text('START LISTENING'), findsWidgets);
-    expect(find.text('DEMO PRESETS'), findsOneWidget);
+    expect(find.text('Device Library'), findsOneWidget);
+    expect(find.text('Load Demo'), findsOneWidget);
+    expect(find.text('Clear'), findsOneWidget);
+    expect(find.text('Export'), findsOneWidget);
 
-    // Click DEMO PRESETS to verify state updates
-    await tester.tap(find.text('DEMO PRESETS'));
+    // Click Load Demo to verify state updates
+    await tester.tap(find.text('Load Demo'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -79,8 +83,9 @@ void main() {
 
   testWidgets('Center empty state displays active listening state and toggles in sync with top bar',
       (WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
 
     final dbService = SwitchDatabaseService();
     dbService.initInMemory();
@@ -132,5 +137,57 @@ void main() {
 
     expect(find.text('No Switch Discovery Packets Received'), findsOneWidget);
     expect(find.text('START LISTENING'), findsNWidgets(2));
+  });
+
+  testWidgets('Top control bar opens Device Library dialog and interacts cleanly',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    final dbService = SwitchDatabaseService();
+    dbService.initInMemory();
+    final captureService = FakeCaptureService();
+    final repo = SwitchDiscoveryRepository(
+      dbService: dbService,
+      captureService: captureService,
+    );
+    final vm = SocketScoutViewModel(
+      repository: repo,
+      initialAdapters: const [
+        NetworkAdapterInfo(name: 'eth0', displayName: 'eth0', ipAddress: '192.168.1.100'),
+      ],
+    );
+    await vm.initFuture;
+    addTearDown(() => vm.dispose());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme(),
+        home: ChangeNotifierProvider<SocketScoutViewModel>.value(
+          value: vm,
+          child: const SocketScoutScreen(),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Tap Device Library button
+    await tester.tap(find.text('Device Library'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Device Library dialog opens
+    expect(find.text('Shared Device Library'), findsOneWidget);
+    expect(find.text('Add Device'), findsOneWidget);
+
+    // Tap Close icon to dismiss dialog
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('Shared Device Library'), findsNothing);
   });
 }
