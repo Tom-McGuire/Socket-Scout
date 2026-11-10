@@ -2,7 +2,7 @@ name: socket_scout
 description: "Switch Port Identifier (LLDP / CDP Listener) desktop application built with Flutter and SQLite."
 publish_to: 'none'
 
-version: 0.5.1-beta+1
+version: 0.5.2-beta+1
 
 environment:
   sdk: ^3.13.0
