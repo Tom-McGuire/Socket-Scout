@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../../domain/models/switch_port_discovery.dart';
 import '../../../theme/app_theme.dart';
 import '../view_models/socket_scout_view_model.dart';
+import 'dialogs/edit_device_dialog.dart';
 
 class Tier4PrimaryWorkspace extends StatelessWidget {
   const Tier4PrimaryWorkspace({super.key});
@@ -22,7 +23,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
       children: [
         // Top Hero Switch Card (Quick Glance)
         if (vm.latestDiscovery != null)
-          _buildHeroSwitchCard(context, vm.latestDiscovery!),
+          _buildHeroSwitchCard(context, vm, vm.latestDiscovery!),
 
         // Data Table Header
         _buildTableHeader(context),
@@ -35,7 +36,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             itemBuilder: (ctx, idx) {
               final item = items[idx];
               final isSelected = item == vm.selectedDiscovery;
-              return _buildTableRow(context, item, isSelected, () => vm.selectDiscovery(item));
+              return _buildTableRow(context, vm, item, isSelected, () => vm.selectDiscovery(item));
             },
           ),
         ),
@@ -43,11 +44,18 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
     );
   }
 
-  Widget _buildHeroSwitchCard(BuildContext context, SwitchPortDiscovery item) {
+  Widget _buildHeroSwitchCard(
+    BuildContext context,
+    SocketScoutViewModel vm,
+    SwitchPortDiscovery item,
+  ) {
     final isLldp = item.protocol == DiscoveryProtocol.lldp;
     final protoColor = isLldp ? const Color(0xFF38BDF8) : const Color(0xFFA78BFA);
 
-    return Container(
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, vm, item, details.globalPosition),
+      child: Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -81,7 +89,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                     Row(
                       children: [
                         SelectableText(
-                          item.switchHostname,
+                          item.displayName,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -107,35 +115,50 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        Tooltip(
+                          message: 'Right-click or tap to edit device in Shared Library',
+                          child: InkWell(
+                            onTap: () => EditDeviceDialog.showForDiscovery(
+                              context,
+                              item,
+                              onSaved: vm.notifyDeviceUpdated,
+                            ),
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.hub_outlined, size: 10, color: Color(0xFF10B981)),
-                              SizedBox(width: 4),
-                              Text(
-                                'SHARED DB • SWITCH',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                  color: Color(0xFF10B981),
-                                ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
                               ),
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.hub_outlined, size: 10, color: Color(0xFF10B981)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    item.hasCustomName ? 'CUSTOM IDENTITY' : 'SHARED DB • SWITCH',
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.edit_note, size: 11, color: Color(0xFF10B981)),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      item.switchModel,
+                      item.hasCustomName
+                          ? '${item.switchHostname} • ${item.switchModel}'
+                          : item.switchModel,
                       style: const TextStyle(fontSize: 12, color: Colors.white70),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -237,8 +260,9 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHeroAttribute({
     required IconData icon,
@@ -311,6 +335,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
 
   Widget _buildTableRow(
     BuildContext context,
+    SocketScoutViewModel vm,
     SwitchPortDiscovery item,
     bool isSelected,
     VoidCallback onTap,
@@ -321,6 +346,8 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, vm, item, details.globalPosition),
       child: Container(
         height: 34,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -366,18 +393,35 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
               ),
             ),
 
-            // Switch Hostname
+            // Switch Hostname / Custom Name
             SizedBox(
               width: 200,
-              child: Text(
-                item.switchHostname,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  if (item.hasCustomName) ...[
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                  Expanded(
+                    child: Text(
+                      item.displayName,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: item.hasCustomName ? FontWeight.bold : FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -532,6 +576,207 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _showContextMenu(
+    BuildContext context,
+    SocketScoutViewModel vm,
+    SwitchPortDiscovery item,
+    Offset position,
+  ) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    final mac = item.effectiveMacAddress ?? item.chassisId;
+    final hasMac = mac != null && mac.trim().isNotEmpty;
+    final hasMgmtIp = item.managementIp != null && item.managementIp!.trim().isNotEmpty;
+    final hasVlan = item.vlanId != null;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        Rect.fromLTWH(0, 0, overlay.size.width, overlay.size.height),
+      ),
+      color: AppTheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppTheme.border),
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'edit_shared',
+          child: Row(
+            children: [
+              const Icon(Icons.bookmark_add_outlined, size: 16, color: Color(0xFF10B981)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  item.hasCustomName
+                      ? 'Edit Device Identity (${item.displayName})...'
+                      : 'Add to Device Library (${item.switchHostname})...',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'copy_hostname',
+          child: Row(
+            children: [
+              const Icon(Icons.dns_outlined, size: 15, color: Colors.white70),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Copy Switch Hostname (${item.switchHostname})',
+                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'copy_port',
+          child: Row(
+            children: [
+              const Icon(Icons.alt_route, size: 15, color: Colors.white70),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Copy Physical Port (${item.portId})',
+                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (hasMgmtIp)
+          PopupMenuItem(
+            value: 'copy_mgmt_ip',
+            child: Row(
+              children: [
+                const Icon(Icons.language, size: 15, color: Colors.white70),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Copy Management IP (${item.managementIp})',
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (hasMac)
+          PopupMenuItem(
+            value: 'copy_mac',
+            child: Row(
+              children: [
+                const Icon(Icons.fingerprint, size: 15, color: Colors.white70),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Copy MAC / Chassis ID ($mac)',
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (hasVlan)
+          PopupMenuItem(
+            value: 'copy_vlan',
+            child: Row(
+              children: [
+                const Icon(Icons.tag, size: 15, color: Colors.white70),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Copy ${item.formattedVlan}',
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'copy_summary',
+          child: Row(
+            children: [
+              Icon(Icons.description_outlined, size: 15, color: Color(0xFF38BDF8)),
+              SizedBox(width: 10),
+              Text(
+                'Copy All Switch Details',
+                style: TextStyle(fontSize: 12, color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == null || !context.mounted) return;
+      switch (value) {
+        case 'edit_shared':
+          EditDeviceDialog.showForDiscovery(
+            context,
+            item,
+            onSaved: vm.notifyDeviceUpdated,
+          );
+          break;
+        case 'copy_hostname':
+          Clipboard.setData(ClipboardData(text: item.switchHostname));
+          _showCopySnackBar(context, 'Copied hostname: ${item.switchHostname}');
+          break;
+        case 'copy_port':
+          Clipboard.setData(ClipboardData(text: item.portId));
+          _showCopySnackBar(context, 'Copied port: ${item.portId}');
+          break;
+        case 'copy_mgmt_ip':
+          if (item.managementIp != null) {
+            Clipboard.setData(ClipboardData(text: item.managementIp!));
+            _showCopySnackBar(context, 'Copied IP: ${item.managementIp!}');
+          }
+          break;
+        case 'copy_mac':
+          if (mac != null) {
+            Clipboard.setData(ClipboardData(text: mac));
+            _showCopySnackBar(context, 'Copied MAC: $mac');
+          }
+          break;
+        case 'copy_vlan':
+          if (item.vlanId != null) {
+            Clipboard.setData(ClipboardData(text: item.vlanId.toString()));
+            _showCopySnackBar(context, 'Copied VLAN: ${item.vlanId}');
+          }
+          break;
+        case 'copy_summary':
+          Clipboard.setData(ClipboardData(text: item.summaryDescription));
+          _showCopySnackBar(context, 'Copied switch details to clipboard');
+          break;
+      }
+    });
+  }
+
+  void _showCopySnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

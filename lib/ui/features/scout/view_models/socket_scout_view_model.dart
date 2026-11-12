@@ -235,6 +235,11 @@ class SocketScoutViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Notifies UI when a device record or custom name is updated in the Shared Device Library.
+  void notifyDeviceUpdated() {
+    notifyListeners();
+  }
+
   String exportCsv() => ExportService.toCsv(discoveries);
   String exportJson() => ExportService.toJson(discoveries);
   String exportReport() => ExportService.toTextReport(discoveries);

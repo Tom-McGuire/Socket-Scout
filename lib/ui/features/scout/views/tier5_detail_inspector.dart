@@ -6,6 +6,7 @@ import '../../../../domain/models/switch_port_discovery.dart';
 import '../../../../data/services/capture/capture_service.dart';
 import '../../../theme/app_theme.dart';
 import '../view_models/socket_scout_view_model.dart';
+import 'dialogs/edit_device_dialog.dart';
 
 class Tier5DetailInspector extends StatefulWidget {
   const Tier5DetailInspector({super.key});
@@ -112,7 +113,7 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
 
           // Switch & Port summary
           Text(
-            '${item.switchHostname}  •  ${item.portId}',
+            '${item.displayName}  •  ${item.portId}',
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -149,6 +150,19 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
                 Tab(text: 'CLI COMMAND'),
               ],
             ),
+          ),
+
+          // Add / Edit in Shared Device Library
+          IconButton(
+            tooltip: 'Add / Edit in Shared Device Library',
+            icon: const Icon(Icons.bookmark_add_outlined, size: 15, color: Color(0xFF10B981)),
+            onPressed: () {
+              EditDeviceDialog.showForDiscovery(
+                context,
+                item,
+                onSaved: vm.notifyDeviceUpdated,
+              );
+            },
           ),
 
           // Copy Summary Button

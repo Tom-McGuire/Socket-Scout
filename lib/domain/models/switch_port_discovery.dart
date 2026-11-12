@@ -123,6 +123,33 @@ class SwitchPortDiscovery {
     return null;
   }
 
+  /// Retrieves the custom friendly device name from [SharedDeviceDatabase] if set,
+  /// otherwise returns the switch hostname.
+  String get displayName {
+    final mac = effectiveMacAddress;
+    if (mac != null && SharedDeviceDatabase.instance.isInitialized) {
+      try {
+        final dev = SharedDeviceDatabase.instance.getDeviceByMac(mac);
+        if (dev != null && dev.hasCustomName && dev.name.trim().isNotEmpty) {
+          return dev.name.trim();
+        }
+      } catch (_) {}
+    }
+    return switchHostname;
+  }
+
+  /// Whether this switch has a user-defined custom friendly name in [SharedDeviceDatabase].
+  bool get hasCustomName {
+    final mac = effectiveMacAddress;
+    if (mac != null && SharedDeviceDatabase.instance.isInitialized) {
+      try {
+        final dev = SharedDeviceDatabase.instance.getDeviceByMac(mac);
+        return dev != null && dev.hasCustomName && dev.name.trim().isNotEmpty;
+      } catch (_) {}
+    }
+    return false;
+  }
+
   SwitchPortDiscovery copyWith({
     int? id,
     DateTime? timestamp,

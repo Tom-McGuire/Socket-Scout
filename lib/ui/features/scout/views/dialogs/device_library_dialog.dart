@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:network_suite_shared/network_suite_shared.dart';
 import '../../../../theme/app_theme.dart';
+import 'edit_device_dialog.dart';
 
 /// Modal dialog allowing users to browse, search, and manage devices
 /// in the Shared Device Library across Network Suite applications.
@@ -77,197 +78,15 @@ class _DeviceLibraryDialogState extends State<DeviceLibraryDialog> {
     }).toList();
   }
 
-  void _showEditDeviceDialog({SharedDevice? existing}) {
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final macCtrl = TextEditingController(text: existing?.macAddress ?? '');
-    final vendorCtrl = TextEditingController(text: existing?.vendor ?? '');
-    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
-    String selectedCategory = existing?.deviceType ?? 'switch';
-
-    List<UnifiedDeviceCategory> categories = [];
-    try {
-      if (SharedDeviceDatabase.instance.isInitialized) {
-        categories = SharedDeviceDatabase.instance.getUnifiedCategories();
-      }
-    } catch (_) {}
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppTheme.surfaceContainer,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          title: Text(
-            existing == null ? 'Add Device to Library' : 'Edit Device in Library',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          content: SingleChildScrollView(
-            child: SizedBox(
-              width: 420,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('MAC Address', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: macCtrl,
-                    enabled: existing == null,
-                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                    decoration: InputDecoration(
-                      hintText: 'AA:BB:CC:DD:EE:FF',
-                      hintStyle: const TextStyle(fontSize: 11, color: Colors.white38),
-                      filled: true,
-                      fillColor: AppTheme.inputFill,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: const BorderSide(color: AppTheme.borderInput),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Friendly Name', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: nameCtrl,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Core Switch Rack 1',
-                      hintStyle: const TextStyle(fontSize: 11, color: Colors.white38),
-                      filled: true,
-                      fillColor: AppTheme.inputFill,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: const BorderSide(color: AppTheme.borderInput),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Device Category', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.inputFill,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppTheme.borderInput),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: categories.any((c) => c.key == selectedCategory)
-                            ? selectedCategory
-                            : (categories.isNotEmpty ? categories.first.key : null),
-                        dropdownColor: AppTheme.surfaceContainer,
-                        isDense: true,
-                        style: const TextStyle(fontSize: 12, color: Colors.white),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() => selectedCategory = val);
-                          }
-                        },
-                        items: categories.map((c) {
-                          return DropdownMenuItem<String>(
-                            value: c.key,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(c.icon, size: 14, color: AppTheme.primaryAccent),
-                                const SizedBox(width: 8),
-                                Text(c.label),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Hardware Vendor', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: vendorCtrl,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Cisco Systems, Netgear, Aruba',
-                      hintStyle: const TextStyle(fontSize: 11, color: Colors.white38),
-                      filled: true,
-                      fillColor: AppTheme.inputFill,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: const BorderSide(color: AppTheme.borderInput),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Notes', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: notesCtrl,
-                    maxLines: 2,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Floor 2 Distribution Switch',
-                      hintStyle: const TextStyle(fontSize: 11, color: Colors.white38),
-                      filled: true,
-                      fillColor: AppTheme.inputFill,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: const BorderSide(color: AppTheme.borderInput),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-              ),
-              onPressed: () {
-                final rawMac = macCtrl.text.trim();
-                final name = nameCtrl.text.trim();
-                if (rawMac.isEmpty || name.isEmpty) return;
-
-                final normMac = SharedDevice.normalizeMac(rawMac);
-                final dev = SharedDevice(
-                  macAddress: normMac,
-                  name: name,
-                  deviceType: selectedCategory,
-                  vendor: vendorCtrl.text.trim().isNotEmpty ? vendorCtrl.text.trim() : null,
-                  notes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
-                  sourceApp: 'socket_scout',
-                  createdAt: existing?.createdAt ?? DateTime.now(),
-                  updatedAt: DateTime.now(),
-                );
-
-                try {
-                  SharedDeviceDatabase.instance.upsertDevice(dev);
-                  Navigator.of(ctx).pop();
-                  _loadDevices();
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to save device: $e')),
-                  );
-                }
-              },
-              child: const Text('Save Device', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _showEditDeviceDialog({SharedDevice? existing}) async {
+    final saved = await EditDeviceDialog.show(
+      context,
+      existing: existing,
+      onSaved: _loadDevices,
     );
+    if (saved == true && mounted) {
+      _loadDevices();
+    }
   }
 
   void _confirmDeleteDevice(SharedDevice device) {
