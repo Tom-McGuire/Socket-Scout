@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:network_suite_shared/network_suite_shared.dart';
 import 'package:provider/provider.dart';
 import 'package:socket_scout/data/repositories/switch_discovery_repository.dart';
 import 'package:socket_scout/data/services/capture/capture_service.dart';
@@ -31,6 +32,21 @@ class FakeCaptureService extends CaptureService {
 }
 
 void main() {
+  setUp(() {
+    try {
+      if (SharedDeviceDatabase.instance.isInitialized) {
+        SharedDeviceDatabase.instance.deleteDevice('58:0A:20:4A:11:80');
+      }
+    } catch (_) {}
+  });
+
+  tearDown(() {
+    try {
+      if (SharedDeviceDatabase.instance.isInitialized) {
+        SharedDeviceDatabase.instance.deleteDevice('58:0A:20:4A:11:80');
+      }
+    } catch (_) {}
+  });
   testWidgets('SocketScoutScreen renders 5-tier layout and empty state',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1800, 900);

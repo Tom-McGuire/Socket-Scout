@@ -19,11 +19,13 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
       return _buildEmptyState(context, vm);
     }
 
+    final heroItem = vm.selectedDiscovery ?? vm.latestDiscovery;
+
     return Column(
       children: [
         // Top Hero Switch Card (Quick Glance)
-        if (vm.latestDiscovery != null)
-          _buildHeroSwitchCard(context, vm, vm.latestDiscovery!),
+        if (heroItem != null)
+          _buildHeroSwitchCard(context, vm, heroItem),
 
         // Data Table Header
         _buildTableHeader(context),
@@ -116,7 +118,9 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Tooltip(
-                          message: 'Right-click or tap to edit device in Shared Library',
+                          message: item.isDemo
+                              ? 'Demo preset (not in shared library). Right-click or tap to add.'
+                              : 'Right-click or tap to edit device in Shared Library',
                           child: InkWell(
                             onTap: () => EditDeviceDialog.showForDiscovery(
                               context,
@@ -127,26 +131,54 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                color: (item.isDemo && !item.hasCustomName
+                                        ? Colors.amber
+                                        : const Color(0xFF10B981))
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                                border: Border.all(
+                                  color: (item.isDemo && !item.hasCustomName
+                                          ? Colors.amber
+                                          : const Color(0xFF10B981))
+                                      .withValues(alpha: 0.4),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.hub_outlined, size: 10, color: Color(0xFF10B981)),
+                                  Icon(
+                                    item.hasCustomName
+                                        ? Icons.hub_outlined
+                                        : (item.isDemo
+                                            ? Icons.science_outlined
+                                            : Icons.hub_outlined),
+                                    size: 10,
+                                    color: item.isDemo && !item.hasCustomName
+                                        ? Colors.amber
+                                        : const Color(0xFF10B981),
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    item.hasCustomName ? 'CUSTOM IDENTITY' : 'SHARED DB • SWITCH',
-                                    style: const TextStyle(
+                                    item.hasCustomName
+                                        ? 'CUSTOM IDENTITY'
+                                        : (item.isDemo ? 'DEMO PRESET' : 'SHARED DB • SWITCH'),
+                                    style: TextStyle(
                                       fontSize: 9,
                                       fontWeight: FontWeight.bold,
                                       letterSpacing: 0.5,
-                                      color: Color(0xFF10B981),
+                                      color: item.isDemo && !item.hasCustomName
+                                          ? Colors.amber
+                                          : const Color(0xFF10B981),
                                     ),
                                   ),
                                   const SizedBox(width: 4),
-                                  const Icon(Icons.edit_note, size: 11, color: Color(0xFF10B981)),
+                                  Icon(
+                                    Icons.edit_note,
+                                    size: 11,
+                                    color: item.isDemo && !item.hasCustomName
+                                        ? Colors.amber
+                                        : const Color(0xFF10B981),
+                                  ),
                                 ],
                               ),
                             ),
@@ -346,8 +378,10 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      onSecondaryTapUp: (details) =>
-          _showContextMenu(context, vm, item, details.globalPosition),
+      onSecondaryTapUp: (details) {
+        vm.selectDiscovery(item);
+        _showContextMenu(context, vm, item, details.globalPosition);
+      },
       child: Container(
         height: 34,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -610,13 +644,19 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
           value: 'edit_shared',
           child: Row(
             children: [
-              const Icon(Icons.bookmark_add_outlined, size: 16, color: Color(0xFF10B981)),
+              Icon(
+                item.hasCustomName ? Icons.edit_note : Icons.bookmark_add_outlined,
+                size: 16,
+                color: const Color(0xFF10B981),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   item.hasCustomName
                       ? 'Edit Device Identity (${item.displayName})...'
-                      : 'Add to Device Library (${item.switchHostname})...',
+                      : (item.isDemo
+                          ? 'Add Demo Switch to Shared Library...'
+                          : 'Add to Device Library (${item.switchHostname})...'),
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: Colors.white,

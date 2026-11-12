@@ -67,6 +67,7 @@ class SwitchPortDiscovery {
     this.rawHex = '',
     this.rawBytes,
     this.interfaceName = 'unknown',
+    this.isDemo = false,
   });
 
   final int? id;
@@ -91,6 +92,7 @@ class SwitchPortDiscovery {
   final String rawHex;
   final List<int>? rawBytes;
   final String interfaceName;
+  final bool isDemo;
 
   String get summaryDescription {
     final vlanPart = vlanId != null ? 'VLAN $vlanId' : 'Untagged';
@@ -173,6 +175,7 @@ class SwitchPortDiscovery {
     String? rawHex,
     List<int>? rawBytes,
     String? interfaceName,
+    bool? isDemo,
   }) {
     return SwitchPortDiscovery(
       id: id ?? this.id,
@@ -197,6 +200,7 @@ class SwitchPortDiscovery {
       rawHex: rawHex ?? this.rawHex,
       rawBytes: rawBytes ?? this.rawBytes,
       interfaceName: interfaceName ?? this.interfaceName,
+      isDemo: isDemo ?? this.isDemo,
     );
   }
 
@@ -223,6 +227,7 @@ class SwitchPortDiscovery {
       'raw_tlvs': jsonEncode(rawTlvs.map((t) => t.toMap()).toList()),
       'raw_hex': rawHex,
       'interface_name': interfaceName,
+      'is_demo': isDemo ? 1 : 0,
     };
   }
 
@@ -279,6 +284,7 @@ class SwitchPortDiscovery {
       rawHex: map['raw_hex'] as String? ?? '',
       rawBytes: rawBytes,
       interfaceName: map['interface_name'] as String? ?? 'unknown',
+      isDemo: (map['is_demo'] as int? ?? 0) == 1,
     );
   }
 }

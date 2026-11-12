@@ -4,6 +4,7 @@ import 'package:socket_scout/data/repositories/switch_discovery_repository.dart'
 import 'package:socket_scout/data/services/capture/capture_service.dart';
 import 'package:socket_scout/data/services/database/switch_database_service.dart';
 import 'package:socket_scout/data/services/export/export_service.dart';
+import 'package:socket_scout/data/services/generator/demo_l2_generator.dart';
 import 'package:socket_scout/domain/models/discovery_filter.dart';
 import 'package:socket_scout/domain/models/switch_port_discovery.dart';
 
@@ -97,10 +98,35 @@ void main() {
       expect(report, contains('Physical Port:   GigabitEthernet1/0/14'));
     });
 
-    test('synchronizes discovered switches into SharedDeviceDatabase with deviceType switch', () {
+    test('does not store demo presets in SharedDeviceDatabase (strictly ignored)', () {
       repository.loadDemoPresets();
 
-      // Cisco Catalyst 9200
+      // Demo data must never be automatically synced to the shared database
+      final allSwitches = sharedDb.getAllDevices(deviceType: 'switch');
+      expect(allSwitches, isEmpty);
+      expect(sharedDb.getAllDevices(), isEmpty);
+
+      // Verify they are still available in memory and local discovery history
+      expect(repository.inMemoryDiscoveries.length, equals(5));
+      expect(dbService.countDiscoveries(), equals(5));
+    });
+
+    test('synchronizes live/captured switch discoveries into SharedDeviceDatabase with deviceType switch', () async {
+      // Live captured packet from a switch
+      final rawFrame = DemoL2Generator.ciscoCatalyst9200Lldp();
+      final discovery = CaptureService.dissectRawFrame(
+        rawFrame,
+        timestamp: DateTime.now(),
+        interfaceName: 'eth0',
+      );
+      expect(discovery, isNotNull);
+      expect(discovery!.isDemo, isFalse);
+
+      // Simulate live network discovery stream
+      captureService.emitDiscoveryForTest(discovery);
+      await Future<void>.delayed(Duration.zero);
+
+      // Cisco Catalyst 9200 should be synced to SharedDeviceDatabase
       final ciscoMac = SharedDevice.normalizeMac('58:0A:20:4A:11:80');
       final ciscoDevice = sharedDb.getDeviceByMac(ciscoMac);
       expect(ciscoDevice, isNotNull);
@@ -111,29 +137,9 @@ void main() {
       expect(ciscoDevice.notes, contains('Port: GigabitEthernet1/0/14'));
       expect(ciscoDevice.notes, contains('VLAN: 20'));
       expect(ciscoDevice.sourceApp, equals('socket_scout'));
-
-      // Netgear M4250
-      final netgearMac = SharedDevice.normalizeMac('9C:34:26:88:99:AA');
-      final netgearDevice = sharedDb.getDeviceByMac(netgearMac);
-      expect(netgearDevice, isNotNull);
-      expect(netgearDevice!.deviceType, equals('switch'));
-      expect(netgearDevice.name, equals('NETGEAR-M4250-AUDITORIUM'));
-      expect(netgearDevice.vendor, contains('Netgear'));
-      expect(netgearDevice.notes, contains('VLAN: 100'));
-
-      // Aruba CX
-      final arubaMac = SharedDevice.normalizeMac('B0:8B:CF:12:34:56');
-      final arubaDevice = sharedDb.getDeviceByMac(arubaMac);
-      expect(arubaDevice, isNotNull);
-      expect(arubaDevice!.deviceType, equals('switch'));
-      expect(arubaDevice.name, equals('aruba-cx-floor3-east'));
-
-      // All 4 distinct switch MACs are registered in shared DB
-      final allSwitches = sharedDb.getAllDevices(deviceType: 'switch');
-      expect(allSwitches.length, equals(4));
     });
 
-    test('preserves user custom names in SharedDeviceDatabase on subsequent discoveries', () {
+    test('preserves user custom names in SharedDeviceDatabase on subsequent discoveries', () async {
       // User has already set a custom friendly name in Shared Device Library
       final ciscoMac = SharedDevice.normalizeMac('58:0A:20:4A:11:80');
       sharedDb.upsertDevice(SharedDevice(
@@ -145,8 +151,15 @@ void main() {
         updatedAt: DateTime.now(),
       ));
 
-      // New discovery announcement arrives
-      repository.loadDemoPresets();
+      // Live discovery announcement arrives
+      final rawFrame = DemoL2Generator.ciscoCatalyst9200Lldp();
+      final discovery = CaptureService.dissectRawFrame(
+        rawFrame,
+        timestamp: DateTime.now(),
+        interfaceName: 'eth0',
+      )!;
+      captureService.emitDiscoveryForTest(discovery);
+      await Future<void>.delayed(Duration.zero);
 
       final updated = sharedDb.getDeviceByMac(ciscoMac);
       expect(updated, isNotNull);

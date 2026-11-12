@@ -60,11 +60,17 @@ class SwitchDiscoveryRepository {
     }
   }
 
-  void _handleDiscovery(SwitchPortDiscovery discovery) {
-    final insertedId = _dbService.insertDiscovery(discovery);
-    final saved = discovery.copyWith(id: insertedId > 0 ? insertedId : null);
+  void _handleDiscovery(SwitchPortDiscovery discovery, {bool isDemo = false}) {
+    final effectiveIsDemo = isDemo || discovery.isDemo;
+    final toSave = discovery.copyWith(isDemo: effectiveIsDemo);
 
-    _syncToSharedDatabase(saved);
+    final insertedId = _dbService.insertDiscovery(toSave);
+    final saved = toSave.copyWith(id: insertedId > 0 ? insertedId : null);
+
+    // Demo data is strictly ignored and never synced to the Shared Device Database.
+    if (!effectiveIsDemo) {
+      _syncToSharedDatabase(saved);
+    }
 
     _inMemoryDiscoveries.insert(0, saved);
     _latestDiscovery = saved;
@@ -78,6 +84,11 @@ class SwitchDiscoveryRepository {
   /// identify the node as an active network switch, display switch topology icons,
   /// and map connected host ports.
   void _syncToSharedDatabase(SwitchPortDiscovery discovery) {
+    // Explicit guard: Demo data is strictly ignored and must not touch the shared database.
+    if (discovery.isDemo) {
+      return;
+    }
+
     if (!_sharedDb.isInitialized) {
       return;
     }
@@ -170,7 +181,9 @@ class SwitchDiscoveryRepository {
   /// Synchronizes all existing historical discoveries into the shared database.
   void _syncAllExistingToSharedDatabase() {
     for (final discovery in _inMemoryDiscoveries) {
-      _syncToSharedDatabase(discovery);
+      if (!discovery.isDemo) {
+        _syncToSharedDatabase(discovery);
+      }
     }
   }
 
@@ -199,10 +212,10 @@ class SwitchDiscoveryRepository {
       final discovery = CaptureService.dissectRawFrame(
         rawFrame,
         timestamp: DateTime.now(),
-        interfaceName: 'eth0',
+        interfaceName: 'demo',
       );
       if (discovery != null) {
-        _handleDiscovery(discovery);
+        _handleDiscovery(discovery.copyWith(isDemo: true), isDemo: true);
       }
     }
   }

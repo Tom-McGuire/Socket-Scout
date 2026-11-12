@@ -270,6 +270,11 @@ class CaptureService {
 
   void protectedSetStatus(CaptureStatus s) => _setStatus(s);
 
+  @visibleForTesting
+  void emitDiscoveryForTest(SwitchPortDiscovery discovery) {
+    _discoveryController.add(discovery);
+  }
+
   void _setStatus(CaptureStatus s) {
     _status = s;
     if (!_statusController.isClosed) {

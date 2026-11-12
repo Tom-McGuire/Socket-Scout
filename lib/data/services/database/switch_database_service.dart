@@ -58,11 +58,15 @@ class SwitchDatabaseService {
         vtp_domain TEXT,
         raw_tlvs TEXT,
         raw_hex TEXT,
-        interface_name TEXT
+        interface_name TEXT,
+        is_demo INTEGER DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS idx_discoveries_timestamp ON switch_discoveries(timestamp_ms DESC);
       CREATE INDEX IF NOT EXISTS idx_discoveries_hostname ON switch_discoveries(switch_hostname);
     ''');
+    try {
+      _db!.execute('ALTER TABLE switch_discoveries ADD COLUMN is_demo INTEGER DEFAULT 0;');
+    } catch (_) {}
   }
 
   int insertDiscovery(SwitchPortDiscovery discovery) {
@@ -73,8 +77,8 @@ class SwitchDatabaseService {
         timestamp_ms, protocol, switch_hostname, port_id, switch_model,
         port_description, vlan_id, vlan_name, management_ip, chassis_id,
         ttl, capabilities, power_mdi, link_aggregation, mtu,
-        duplex, vtp_domain, raw_tlvs, raw_hex, interface_name
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duplex, vtp_domain, raw_tlvs, raw_hex, interface_name, is_demo
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''');
 
     try {
@@ -100,6 +104,7 @@ class SwitchDatabaseService {
         map['raw_tlvs'],
         map['raw_hex'],
         map['interface_name'],
+        map['is_demo'] ?? 0,
       ]);
       return _db!.lastInsertRowId;
     } catch (e) {
