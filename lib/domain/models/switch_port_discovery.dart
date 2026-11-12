@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:network_suite_shared/network_suite_shared.dart';
 
 enum DiscoveryProtocol {
   lldp,
@@ -102,6 +103,24 @@ class SwitchPortDiscovery {
       return 'VLAN $vlanId ($vlanName)';
     }
     return 'VLAN $vlanId';
+  }
+
+  /// Resolves the canonical 6-byte MAC address of the switch from either
+  /// its Chassis ID or the raw Ethernet frame header.
+  String? get effectiveMacAddress {
+    if (chassisId != null && SharedDevice.isValidMac(chassisId!)) {
+      return SharedDevice.normalizeMac(chassisId!);
+    }
+    if (rawBytes != null && rawBytes!.length >= 12) {
+      final mac = rawBytes!
+          .sublist(6, 12)
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(':');
+      if (SharedDevice.isValidMac(mac)) {
+        return SharedDevice.normalizeMac(mac);
+      }
+    }
+    return null;
   }
 
   SwitchPortDiscovery copyWith({

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:network_suite_shared/network_suite_shared.dart';
 import 'package:socket_scout/data/repositories/switch_discovery_repository.dart';
 import 'package:socket_scout/data/services/capture/capture_service.dart';
 import 'package:socket_scout/data/services/database/switch_database_service.dart';
@@ -10,15 +11,19 @@ void main() {
   group('SwitchDiscoveryRepository & Database', () {
     late SwitchDatabaseService dbService;
     late CaptureService captureService;
+    late SharedDeviceDatabase sharedDb;
     late SwitchDiscoveryRepository repository;
 
     setUp(() async {
       dbService = SwitchDatabaseService();
       dbService.initInMemory();
       captureService = CaptureService();
+      sharedDb = SharedDeviceDatabase();
+      await sharedDb.init(dbPath: ':memory:');
       repository = SwitchDiscoveryRepository(
         dbService: dbService,
         captureService: captureService,
+        sharedDb: sharedDb,
       );
     });
 
@@ -90,6 +95,68 @@ void main() {
       final report = ExportService.toTextReport(repository.inMemoryDiscoveries);
       expect(report, contains('SOCKET SCOUT - SWITCH PORT DISCOVERY REPORT'));
       expect(report, contains('Physical Port:   GigabitEthernet1/0/14'));
+    });
+
+    test('synchronizes discovered switches into SharedDeviceDatabase with deviceType switch', () {
+      repository.loadDemoPresets();
+
+      // Cisco Catalyst 9200
+      final ciscoMac = SharedDevice.normalizeMac('58:0A:20:4A:11:80');
+      final ciscoDevice = sharedDb.getDeviceByMac(ciscoMac);
+      expect(ciscoDevice, isNotNull);
+      expect(ciscoDevice!.deviceType, equals('switch'));
+      expect(ciscoDevice.name, equals('SW-CAT9200-RACK04.corp.local'));
+      expect(ciscoDevice.vendor, equals('Cisco Systems, Inc.'));
+      expect(ciscoDevice.notes, contains('Mgmt IP: 10.20.4.15'));
+      expect(ciscoDevice.notes, contains('Port: GigabitEthernet1/0/14'));
+      expect(ciscoDevice.notes, contains('VLAN: 20'));
+      expect(ciscoDevice.sourceApp, equals('socket_scout'));
+
+      // Netgear M4250
+      final netgearMac = SharedDevice.normalizeMac('9C:34:26:88:99:AA');
+      final netgearDevice = sharedDb.getDeviceByMac(netgearMac);
+      expect(netgearDevice, isNotNull);
+      expect(netgearDevice!.deviceType, equals('switch'));
+      expect(netgearDevice.name, equals('NETGEAR-M4250-AUDITORIUM'));
+      expect(netgearDevice.vendor, contains('Netgear'));
+      expect(netgearDevice.notes, contains('VLAN: 100'));
+
+      // Aruba CX
+      final arubaMac = SharedDevice.normalizeMac('B0:8B:CF:12:34:56');
+      final arubaDevice = sharedDb.getDeviceByMac(arubaMac);
+      expect(arubaDevice, isNotNull);
+      expect(arubaDevice!.deviceType, equals('switch'));
+      expect(arubaDevice.name, equals('aruba-cx-floor3-east'));
+
+      // All 4 distinct switch MACs are registered in shared DB
+      final allSwitches = sharedDb.getAllDevices(deviceType: 'switch');
+      expect(allSwitches.length, equals(4));
+    });
+
+    test('preserves user custom names in SharedDeviceDatabase on subsequent discoveries', () {
+      // User has already set a custom friendly name in Shared Device Library
+      final ciscoMac = SharedDevice.normalizeMac('58:0A:20:4A:11:80');
+      sharedDb.upsertDevice(SharedDevice(
+        macAddress: ciscoMac,
+        name: 'Core Distribution Switch (Room 204)',
+        deviceType: 'switch',
+        sourceApp: 'user_custom',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+
+      // New discovery announcement arrives
+      repository.loadDemoPresets();
+
+      final updated = sharedDb.getDeviceByMac(ciscoMac);
+      expect(updated, isNotNull);
+      // Custom name is preserved
+      expect(updated!.name, equals('Core Distribution Switch (Room 204)'));
+      // Device type remains 'switch'
+      expect(updated.deviceType, equals('switch'));
+      // Notes are enriched with latest discovery telemetry
+      expect(updated.notes, contains('Mgmt IP: 10.20.4.15'));
+      expect(updated.notes, contains('Port: GigabitEthernet1/0/14'));
     });
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:network_suite_shared/network_suite_shared.dart';
 import 'package:provider/provider.dart';
 import 'data/repositories/switch_discovery_repository.dart';
 import 'data/services/capture/capture_service.dart';
@@ -9,6 +10,14 @@ import 'ui/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    if (!SharedDeviceDatabase.instance.isInitialized) {
+      await SharedDeviceDatabase.instance.init();
+    }
+  } catch (e) {
+    debugPrint('SharedDeviceDatabase init warning: $e');
+  }
 
   final dbService = SwitchDatabaseService();
   final captureService = CaptureService();

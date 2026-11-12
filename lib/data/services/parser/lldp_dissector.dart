@@ -258,6 +258,17 @@ class LldpDissector {
 
     final rawHex = _formatHexDump(packet);
 
+    // If Chassis ID TLV was absent or unparsed, fall back to Ethernet Source MAC
+    if (chassisId == null || chassisId.isEmpty) {
+      if (packet.length >= 12) {
+        chassisId = packet
+            .sublist(6, 12)
+            .map((b) => b.toRadixString(16).padLeft(2, '0'))
+            .join(':')
+            .toUpperCase();
+      }
+    }
+
     return SwitchPortDiscovery(
       timestamp: timestamp ?? DateTime.now(),
       protocol: DiscoveryProtocol.lldp,

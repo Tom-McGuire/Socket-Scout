@@ -191,6 +191,7 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
             _buildFieldCard('Management IP', item.managementIp!, isSelectable: true, isMono: true, highlightColor: Colors.lightGreenAccent),
           if (item.chassisId != null)
             _buildFieldCard('Chassis ID (MAC)', item.chassisId!, isSelectable: true, isMono: true),
+          _buildFieldCard('Shared Device DB', 'Stored as Switch (auto-promotes in Route Scout)', highlightColor: const Color(0xFF10B981)),
           _buildFieldCard('Hold-time (TTL)', '${item.ttl} seconds'),
           if (item.capabilities.isNotEmpty)
             _buildFieldCard('System Capabilities', item.capabilities.join(', ')),
