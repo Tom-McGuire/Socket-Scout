@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +8,28 @@ import '../view_models/socket_scout_view_model.dart';
 import 'dialogs/edit_device_dialog.dart';
 
 class Tier4PrimaryWorkspace extends StatelessWidget {
-  const Tier4PrimaryWorkspace({super.key});
+  const Tier4PrimaryWorkspace({
+    super.key,
+    this.heroCardKey,
+    this.historyTableKey,
+  });
+
+  final GlobalKey? heroCardKey;
+  final GlobalKey? historyTableKey;
+
+  static Color _protocolColor(DiscoveryProtocol protocol) {
+    final isLldp = protocol == DiscoveryProtocol.lldp;
+    if (AppTheme.isDark) {
+      return isLldp ? const Color(0xFF38BDF8) : const Color(0xFFA78BFA);
+    }
+    return isLldp ? const Color(0xFF0369A1) : const Color(0xFF6D28D9);
+  }
+
+  static Color get _vlanColor =>
+      AppTheme.isDark ? Colors.amberAccent : const Color(0xFFB45309);
+
+  static Color get _mgmtIpColor =>
+      AppTheme.isDark ? Colors.lightGreenAccent : const Color(0xFF047857);
 
   @override
   Widget build(BuildContext context) {
@@ -24,22 +45,36 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
     return Column(
       children: [
         // Top Hero Switch Card (Quick Glance)
-        if (heroItem != null)
-          _buildHeroSwitchCard(context, vm, heroItem),
+        if (heroItem != null) _buildHeroSwitchCard(context, vm, heroItem),
 
-        // Data Table Header
-        _buildTableHeader(context),
-
-        // Virtualized Data Table
+        // Data Table Header & List wrapped in key for Guided Tour Spotlight
         Expanded(
-          child: ListView.separated(
-            itemCount: items.length,
-            separatorBuilder: (ctx, idx) => const Divider(height: 1, color: AppTheme.border),
-            itemBuilder: (ctx, idx) {
-              final item = items[idx];
-              final isSelected = item == vm.selectedDiscovery;
-              return _buildTableRow(context, vm, item, isSelected, () => vm.selectDiscovery(item));
-            },
+          child: Column(
+            key: historyTableKey,
+            children: [
+              _buildTableHeader(context),
+              Expanded(
+                child: Container(
+                  color: AppTheme.surface,
+                  child: ListView.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (ctx, idx) =>
+                        Divider(height: 1, color: AppTheme.border),
+                    itemBuilder: (ctx, idx) {
+                      final item = items[idx];
+                      final isSelected = item == vm.selectedDiscovery;
+                      return _buildTableRow(
+                        context,
+                        vm,
+                        item,
+                        isSelected,
+                        () => vm.selectDiscovery(item),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -51,250 +86,256 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
     SocketScoutViewModel vm,
     SwitchPortDiscovery item,
   ) {
-    final isLldp = item.protocol == DiscoveryProtocol.lldp;
-    final protoColor = isLldp ? const Color(0xFF38BDF8) : const Color(0xFFA78BFA);
+    final protoColor = _protocolColor(item.protocol);
+    final isDemoBadge = item.isDemo && !item.hasCustomName;
+    final badgeColor = isDemoBadge ? AppTheme.warning : AppTheme.success;
 
     return GestureDetector(
+      key: heroCardKey,
       onSecondaryTapUp: (details) =>
           _showContextMenu(context, vm, item, details.globalPosition),
       child: Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Hardware Icon
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: protoColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: protoColor.withValues(alpha: 0.4)),
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Hardware Icon
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: protoColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: protoColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Icon(Icons.dns, size: 22, color: protoColor),
                 ),
-                child: Icon(Icons.dns, size: 22, color: protoColor),
-              ),
-              const SizedBox(width: 14),
+                const SizedBox(width: 14),
 
-              // Switch Name & Model
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        SelectableText(
-                          item.displayName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: protoColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: protoColor.withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            item.protocol.label,
+                // Switch Name & Model
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          SelectableText(
+                            item.displayName,
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: protoColor,
+                              letterSpacing: 0.5,
+                              color: AppTheme.textPrimary,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Tooltip(
-                          message: item.isDemo
-                              ? 'Demo preset (not in shared library). Right-click or tap to add.'
-                              : 'Right-click or tap to edit device in Shared Library',
-                          child: InkWell(
-                            onTap: () => EditDeviceDialog.showForDiscovery(
-                              context,
-                              item,
-                              onSaved: vm.notifyDeviceUpdated,
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
                             ),
-                            borderRadius: BorderRadius.circular(4),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: (item.isDemo && !item.hasCustomName
-                                        ? Colors.amber
-                                        : const Color(0xFF10B981))
-                                    .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: (item.isDemo && !item.hasCustomName
-                                          ? Colors.amber
-                                          : const Color(0xFF10B981))
-                                      .withValues(alpha: 0.4),
+                            decoration: BoxDecoration(
+                              color: protoColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: protoColor.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Text(
+                              item.protocol.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: protoColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message: item.isDemo
+                                ? 'Demo preset (not in shared library). Right-click or tap to add.'
+                                : 'Right-click or tap to edit device in Shared Library',
+                            child: InkWell(
+                              onTap: () => EditDeviceDialog.showForDiscovery(
+                                context,
+                                item,
+                                onSaved: vm.notifyDeviceUpdated,
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: badgeColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: badgeColor.withValues(alpha: 0.4),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      item.hasCustomName
+                                          ? Icons.hub_outlined
+                                          : (item.isDemo
+                                              ? Icons.science_outlined
+                                              : Icons.hub_outlined),
+                                      size: 10,
+                                      color: badgeColor,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      item.hasCustomName
+                                          ? 'CUSTOM IDENTITY'
+                                          : (item.isDemo
+                                              ? 'DEMO PRESET'
+                                              : 'SHARED DB • SWITCH'),
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                        color: badgeColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.edit_note,
+                                      size: 11,
+                                      color: badgeColor,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    item.hasCustomName
-                                        ? Icons.hub_outlined
-                                        : (item.isDemo
-                                            ? Icons.science_outlined
-                                            : Icons.hub_outlined),
-                                    size: 10,
-                                    color: item.isDemo && !item.hasCustomName
-                                        ? Colors.amber
-                                        : const Color(0xFF10B981),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    item.hasCustomName
-                                        ? 'CUSTOM IDENTITY'
-                                        : (item.isDemo ? 'DEMO PRESET' : 'SHARED DB • SWITCH'),
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                      color: item.isDemo && !item.hasCustomName
-                                          ? Colors.amber
-                                          : const Color(0xFF10B981),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.edit_note,
-                                    size: 11,
-                                    color: item.isDemo && !item.hasCustomName
-                                        ? Colors.amber
-                                        : const Color(0xFF10B981),
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        item.hasCustomName
+                            ? '${item.switchHostname} • ${item.switchModel}'
+                            : item.switchModel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.hasCustomName
-                          ? '${item.switchHostname} • ${item.switchModel}'
-                          : item.switchModel,
-                      style: const TextStyle(fontSize: 12, color: Colors.white70),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-
-              // Physical Port Badge (Prominent)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.primaryAccent.withValues(alpha: 0.5)),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'PHYSICAL PORT',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.8,
-                        color: Colors.white60,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ],
+                  ),
+                ),
+
+                // Physical Port Badge (Prominent)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppTheme.primaryAccent.withValues(alpha: 0.5),
                     ),
-                    const SizedBox(height: 2),
-                    SelectableText(
-                      item.portId,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryAccent,
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'PHYSICAL PORT',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      SelectableText(
+                        item.portId,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryAccent,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
 
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: AppTheme.border),
-          const SizedBox(height: 10),
+            const SizedBox(height: 12),
+            Divider(height: 1, color: AppTheme.border),
+            const SizedBox(height: 10),
 
-          // Technical Parameter Row
-          Wrap(
-            spacing: 20,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              // VLAN ID
-              _buildHeroAttribute(
-                icon: Icons.tag,
-                label: 'Active VLAN',
-                value: item.formattedVlan,
-                valueColor: Colors.amberAccent,
-              ),
-
-              // Management IP
-              if (item.managementIp != null)
+            // Technical Parameter Row
+            Wrap(
+              spacing: 20,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // VLAN ID
                 _buildHeroAttribute(
-                  icon: Icons.language,
-                  label: 'Management IP',
-                  value: item.managementIp!,
-                  valueColor: Colors.lightGreenAccent,
-                  isMonospace: true,
-                  canCopy: true,
-                  context: context,
+                  icon: Icons.tag,
+                  label: 'Active VLAN',
+                  value: item.formattedVlan,
+                  valueColor: _vlanColor,
                 ),
 
-              // Chassis MAC
-              if (item.chassisId != null)
-                _buildHeroAttribute(
-                  icon: Icons.fingerprint,
-                  label: 'Chassis ID (MAC)',
-                  value: item.chassisId!,
-                  isMonospace: true,
-                ),
+                // Management IP
+                if (item.managementIp != null)
+                  _buildHeroAttribute(
+                    icon: Icons.language,
+                    label: 'Management IP',
+                    value: item.managementIp!,
+                    valueColor: _mgmtIpColor,
+                    isMonospace: true,
+                    canCopy: true,
+                    context: context,
+                  ),
 
-              // PoE Power
-              if (item.powerMdi != null)
-                _buildHeroAttribute(
-                  icon: Icons.bolt,
-                  label: 'Power / PoE',
-                  value: item.powerMdi!,
-                ),
+                // Chassis MAC
+                if (item.chassisId != null)
+                  _buildHeroAttribute(
+                    icon: Icons.fingerprint,
+                    label: 'Chassis ID (MAC)',
+                    value: item.chassisId!,
+                    isMonospace: true,
+                  ),
 
-              // Capabilities
-              if (item.capabilities.isNotEmpty)
-                _buildHeroAttribute(
-                  icon: Icons.device_hub,
-                  label: 'Capabilities',
-                  value: item.capabilities.join(', '),
-                ),
-            ],
-          ),
-        ],
+                // PoE Power
+                if (item.powerMdi != null)
+                  _buildHeroAttribute(
+                    icon: Icons.bolt,
+                    label: 'Power / PoE',
+                    value: item.powerMdi!,
+                  ),
+
+                // Capabilities
+                if (item.capabilities.isNotEmpty)
+                  _buildHeroAttribute(
+                    icon: Icons.device_hub,
+                    label: 'Capabilities',
+                    value: item.capabilities.join(', '),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildHeroAttribute({
     required IconData icon,
@@ -308,11 +349,11 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.white54),
+        Icon(icon, size: 14, color: AppTheme.textMuted),
         const SizedBox(width: 6),
         Text(
           '$label: ',
-          style: const TextStyle(fontSize: 11, color: Colors.white60),
+          style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
         ),
         SelectableText(
           value,
@@ -320,7 +361,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             fontSize: 11,
             fontWeight: FontWeight.bold,
             fontFamily: isMonospace ? 'monospace' : null,
-            color: valueColor ?? Colors.white,
+            color: valueColor ?? AppTheme.textPrimary,
           ),
         ),
         if (canCopy && context != null) ...[
@@ -329,10 +370,13 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             onTap: () {
               Clipboard.setData(ClipboardData(text: value));
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Copied $value to clipboard'), duration: const Duration(seconds: 1)),
+                SnackBar(
+                  content: Text('Copied $value to clipboard'),
+                  duration: const Duration(seconds: 1),
+                ),
               );
             },
-            child: const Icon(Icons.copy, size: 12, color: Colors.white54),
+            child: Icon(Icons.copy, size: 12, color: AppTheme.textMuted),
           ),
         ],
       ],
@@ -340,30 +384,39 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
   }
 
   Widget _buildTableHeader(BuildContext context) {
+    final headerStyle = TextStyle(
+      fontSize: 10,
+      fontWeight: FontWeight.bold,
+      letterSpacing: 0.6,
+      color: AppTheme.textSecondary,
+    );
+
     return Container(
       height: 30,
-      color: AppTheme.surfaceContainerHighest,
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHigh,
+        border: Border(
+          top: BorderSide(color: AppTheme.border),
+          bottom: BorderSide(color: AppTheme.border),
+        ),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: const Row(
+      child: Row(
         children: [
-          SizedBox(width: 140, child: Text('TIMESTAMP', style: _headerStyle)),
-          SizedBox(width: 70, child: Text('PROTO', style: _headerStyle)),
-          SizedBox(width: 200, child: Text('SWITCH HOSTNAME', style: _headerStyle)),
-          SizedBox(width: 160, child: Text('PORT ID', style: _headerStyle)),
-          SizedBox(width: 90, child: Text('VLAN', style: _headerStyle)),
-          SizedBox(width: 130, child: Text('MGMT IP', style: _headerStyle)),
-          Expanded(child: Text('MODEL / PLATFORM', style: _headerStyle)),
+          SizedBox(width: 140, child: Text('TIMESTAMP', style: headerStyle)),
+          SizedBox(width: 70, child: Text('PROTO', style: headerStyle)),
+          SizedBox(
+            width: 200,
+            child: Text('SWITCH HOSTNAME', style: headerStyle),
+          ),
+          SizedBox(width: 160, child: Text('PORT ID', style: headerStyle)),
+          SizedBox(width: 90, child: Text('VLAN', style: headerStyle)),
+          SizedBox(width: 130, child: Text('MGMT IP', style: headerStyle)),
+          Expanded(child: Text('MODEL / PLATFORM', style: headerStyle)),
         ],
       ),
     );
   }
-
-  static const TextStyle _headerStyle = TextStyle(
-    fontSize: 10,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 0.6,
-    color: Colors.white70,
-  );
 
   Widget _buildTableRow(
     BuildContext context,
@@ -373,8 +426,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
     VoidCallback onTap,
   ) {
     final timeStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(item.timestamp);
-    final isLldp = item.protocol == DiscoveryProtocol.lldp;
-    final protoColor = isLldp ? const Color(0xFF38BDF8) : const Color(0xFFA78BFA);
+    final protoColor = _protocolColor(item.protocol);
 
     return InkWell(
       onTap: onTap,
@@ -395,10 +447,10 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
               width: 140,
               child: Text(
                 timeStr,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 11,
-                  color: Colors.white70,
+                  color: AppTheme.textSecondary,
                 ),
               ),
             ),
@@ -409,11 +461,13 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(
                     color: protoColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: protoColor.withValues(alpha: 0.3)),
+                    border:
+                        Border.all(color: protoColor.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     item.protocol.label,
@@ -437,8 +491,8 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                       width: 6,
                       height: 6,
                       margin: const EdgeInsets.only(right: 6),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF10B981),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -448,8 +502,10 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                       item.displayName,
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: item.hasCustomName ? FontWeight.bold : FontWeight.w600,
-                        color: Colors.white,
+                        fontWeight: item.hasCustomName
+                            ? FontWeight.bold
+                            : FontWeight.w600,
+                        color: AppTheme.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -464,7 +520,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
               width: 160,
               child: Text(
                 item.portId,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
@@ -483,7 +539,7 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: item.vlanId != null ? Colors.amber : Colors.white38,
+                  color: item.vlanId != null ? _vlanColor : AppTheme.textMuted,
                 ),
               ),
             ),
@@ -493,10 +549,12 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
               width: 130,
               child: Text(
                 item.managementIp ?? '—',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 11,
-                  color: Colors.lightGreenAccent,
+                  color: item.managementIp != null
+                      ? _mgmtIpColor
+                      : AppTheme.textMuted,
                 ),
               ),
             ),
@@ -505,9 +563,9 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             Expanded(
               child: Text(
                 item.switchModel,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
-                  color: Colors.white60,
+                  color: AppTheme.textSecondary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -543,7 +601,9 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             child: Icon(
               isListening ? Icons.settings_input_antenna : Icons.radar,
               size: 56,
-              color: isListening ? AppTheme.success : AppTheme.primaryAccent.withValues(alpha: 0.8),
+              color: isListening
+                  ? AppTheme.success
+                  : AppTheme.primaryAccent.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 20),
@@ -551,10 +611,10 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             isListening
                 ? 'Listening for Switch Announcements...'
                 : 'No Switch Discovery Packets Received',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppTheme.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -565,9 +625,9 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                   ? 'Listening on ${vm.selectedAdapter?.name ?? 'selected adapter'}. Switches transmit LLDP and CDP frames every 30 to 60 seconds (or immediately on link up). Waiting for frames...'
                   : 'Connect your Ethernet cable to a managed switch port and click "Start Listening", or load built-in demo packets to explore features.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: Colors.white60,
+                color: AppTheme.textSecondary,
                 height: 1.5,
               ),
             ),
@@ -578,10 +638,14 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             children: [
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: isListening ? AppTheme.error : AppTheme.success,
+                  backgroundColor:
+                      isListening ? AppTheme.error : AppTheme.success,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                 ),
                 icon: Icon(
                   isListening ? Icons.stop : Icons.play_arrow,
@@ -589,23 +653,38 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                 ),
                 label: Text(
                   isListening ? 'STOP LISTENING' : 'START LISTENING',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 onPressed: () => vm.toggleListening(),
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppTheme.borderInput),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  foregroundColor: AppTheme.textPrimary,
+                  side: BorderSide(color: AppTheme.borderInput),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                 ),
-                icon: const Icon(Icons.science_outlined, size: 16, color: Colors.amber),
-                label: const Text(
+                icon: Icon(
+                  Icons.science_outlined,
+                  size: 16,
+                  color: AppTheme.warning,
+                ),
+                label: Text(
                   'LOAD DEMO DATA',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
-                onPressed: () => vm.loadDemoData(),
+                onPressed: isListening ? null : () => vm.startDemoWalkthrough(),
               ),
             ],
           ),
@@ -620,12 +699,14 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
     SwitchPortDiscovery item,
     Offset position,
   ) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
 
     final mac = item.effectiveMacAddress ?? item.chassisId;
     final hasMac = mac != null && mac.trim().isNotEmpty;
-    final hasMgmtIp = item.managementIp != null && item.managementIp!.trim().isNotEmpty;
+    final hasMgmtIp =
+        item.managementIp != null && item.managementIp!.trim().isNotEmpty;
     final hasVlan = item.vlanId != null;
 
     showMenu<String>(
@@ -634,10 +715,10 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
         Rect.fromLTWH(position.dx, position.dy, 0, 0),
         Rect.fromLTWH(0, 0, overlay.size.width, overlay.size.height),
       ),
-      color: AppTheme.surfaceContainerHighest,
+      color: AppTheme.surfaceElevated,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: AppTheme.border),
+        side: BorderSide(color: AppTheme.border),
       ),
       items: [
         PopupMenuItem(
@@ -645,9 +726,11 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                item.hasCustomName ? Icons.edit_note : Icons.bookmark_add_outlined,
+                item.hasCustomName
+                    ? Icons.edit_note
+                    : Icons.bookmark_add_outlined,
                 size: 16,
-                color: const Color(0xFF10B981),
+                color: AppTheme.success,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -657,9 +740,9 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
                       : (item.isDemo
                           ? 'Add Demo Switch to Shared Library...'
                           : 'Add to Device Library (${item.switchHostname})...'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontWeight: FontWeight.w600,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -673,12 +756,12 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
           value: 'copy_hostname',
           child: Row(
             children: [
-              const Icon(Icons.dns_outlined, size: 15, color: Colors.white70),
+              Icon(Icons.dns_outlined, size: 15, color: AppTheme.textSecondary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Copy Switch Hostname (${item.switchHostname})',
-                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -689,12 +772,12 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
           value: 'copy_port',
           child: Row(
             children: [
-              const Icon(Icons.alt_route, size: 15, color: Colors.white70),
+              Icon(Icons.alt_route, size: 15, color: AppTheme.textSecondary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Copy Physical Port (${item.portId})',
-                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -706,12 +789,12 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             value: 'copy_mgmt_ip',
             child: Row(
               children: [
-                const Icon(Icons.language, size: 15, color: Colors.white70),
+                Icon(Icons.language, size: 15, color: AppTheme.textSecondary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Copy Management IP (${item.managementIp})',
-                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -723,12 +806,12 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             value: 'copy_mac',
             child: Row(
               children: [
-                const Icon(Icons.fingerprint, size: 15, color: Colors.white70),
+                Icon(Icons.fingerprint, size: 15, color: AppTheme.textSecondary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Copy MAC / Chassis ID ($mac)',
-                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -740,12 +823,12 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             value: 'copy_vlan',
             child: Row(
               children: [
-                const Icon(Icons.tag, size: 15, color: Colors.white70),
+                Icon(Icons.tag, size: 15, color: AppTheme.textSecondary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Copy ${item.formattedVlan}',
-                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -753,15 +836,19 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
             ),
           ),
         const PopupMenuDivider(),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'copy_summary',
           child: Row(
             children: [
-              Icon(Icons.description_outlined, size: 15, color: Color(0xFF38BDF8)),
-              SizedBox(width: 10),
+              Icon(
+                Icons.description_outlined,
+                size: 15,
+                color: AppTheme.primaryAccent,
+              ),
+              const SizedBox(width: 10),
               Text(
                 'Copy All Switch Details',
-                style: TextStyle(fontSize: 12, color: Colors.white),
+                style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
               ),
             ],
           ),

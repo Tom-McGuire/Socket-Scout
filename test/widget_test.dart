@@ -1,5 +1,5 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network_suite_shared/network_suite_shared.dart';
 import 'package:provider/provider.dart';
@@ -32,15 +32,16 @@ class FakeCaptureService extends CaptureService {
 }
 
 void main() {
-  setUp(() {
+  setUp(() async {
+    AppTheme.applyThemeMode('dark');
+    await SharedDeviceDatabase.instance.init(dbPath: ':memory:');
     try {
-      if (SharedDeviceDatabase.instance.isInitialized) {
-        SharedDeviceDatabase.instance.deleteDevice('58:0A:20:4A:11:80');
-      }
+      SharedDeviceDatabase.instance.deleteDevice('58:0A:20:4A:11:80');
     } catch (_) {}
   });
 
   tearDown(() {
+    AppTheme.applyThemeMode('dark');
     try {
       if (SharedDeviceDatabase.instance.isInitialized) {
         SharedDeviceDatabase.instance.deleteDevice('58:0A:20:4A:11:80');
@@ -243,8 +244,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Load demo data
-    await tester.tap(find.text('Load Demo'));
+    // Load demo data directly into workspace to test row right-click interaction
+    vm.loadDemoData();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 

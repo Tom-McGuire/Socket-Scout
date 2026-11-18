@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../../../../domain/models/discovery_filter.dart';
+import '../../../../domain/models/launch_adapter_config.dart';
 import '../../../../domain/models/network_adapter_info.dart';
 import '../../../../domain/models/switch_port_discovery.dart';
 import '../../../../data/repositories/switch_discovery_repository.dart';
@@ -13,11 +14,16 @@ class SocketScoutViewModel extends ChangeNotifier {
   SocketScoutViewModel({
     SwitchDiscoveryRepository? repository,
     List<NetworkAdapterInfo>? initialAdapters,
-  }) : _repository = repository ?? SwitchDiscoveryRepository() {
+    this.initialAdapterConfig,
+    Future<List<NetworkAdapterInfo>> Function()? adapterProvider,
+  })  : _repository = repository ?? SwitchDiscoveryRepository(),
+        _adapterProvider =
+            adapterProvider ?? NetworkAdapterService.getAvailableAdapters {
     if (initialAdapters != null) {
       _adapters = List.from(initialAdapters);
       if (_adapters.isNotEmpty) {
-        _selectedAdapter = _adapters.first;
+        _selectedAdapter =
+            _applyInitialAdapterOverride(_adapters) ?? _adapters.first;
       }
     }
     initFuture = _init(skipAdapters: initialAdapters != null);
@@ -25,10 +31,16 @@ class SocketScoutViewModel extends ChangeNotifier {
 
   late final Future<void> initFuture;
   final SwitchDiscoveryRepository _repository;
+  final LaunchAdapterConfig? initialAdapterConfig;
+  final Future<List<NetworkAdapterInfo>> Function() _adapterProvider;
+  bool _hasAppliedInitialAdapterOverride = false;
+  bool _isDemoMode = false;
   StreamSubscription<SwitchPortDiscovery>? _discoverySub;
   StreamSubscription<CaptureStatus>? _statusSub;
   Timer? _elapsedTimer;
   bool _isDisposed = false;
+
+  bool get isDemoMode => _isDemoMode;
 
   @override
   void notifyListeners() {
@@ -109,10 +121,23 @@ class SocketScoutViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  NetworkAdapterInfo? _applyInitialAdapterOverride(
+    List<NetworkAdapterInfo> adapters,
+  ) {
+    if (_hasAppliedInitialAdapterOverride) return null;
+    _hasAppliedInitialAdapterOverride = true;
+    return initialAdapterConfig?.matchAdapter(adapters);
+  }
+
   Future<void> refreshAdapters() async {
-    _adapters = await NetworkAdapterService.getAvailableAdapters();
+    _adapters = await _adapterProvider();
+    if (_isDisposed) return;
     if (_adapters.isNotEmpty) {
-      if (_selectedAdapter == null || !_adapters.contains(_selectedAdapter)) {
+      final matched = _applyInitialAdapterOverride(_adapters);
+      if (matched != null) {
+        _selectedAdapter = matched;
+      } else if (_selectedAdapter == null ||
+          !_adapters.contains(_selectedAdapter)) {
         // Prefer first real adapter over 'any' if available
         if (_adapters.length > 1) {
           _selectedAdapter = _adapters[1];
@@ -187,6 +212,19 @@ class SocketScoutViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Starts demo mode by loading in-memory demo packets and activating the guided tour.
+  void startDemoWalkthrough() {
+    if (_isListening) return;
+    _isDemoMode = true;
+    loadDemoData();
+  }
+
+  /// Ends demo mode and automatically clears demo discovery data.
+  void endDemoWalkthrough() {
+    _isDemoMode = false;
+    clearAll();
+  }
+
   Future<int> importPcapFile(File file) async {
     final count = await _repository.importPcapFile(file);
     if (_repository.latestDiscovery != null) {
@@ -230,10 +268,14 @@ class SocketScoutViewModel extends ChangeNotifier {
   }
 
   void clearAll() {
+    _isDemoMode = false;
     _repository.clearAll();
     _selectedDiscovery = null;
     notifyListeners();
   }
+
+  /// Alias for clearing all captured/demo LLDP & CDP frames.
+  void clearFrames() => clearAll();
 
   /// Notifies UI when a device record or custom name is updated in the Shared Device Library.
   void notifyDeviceUpdated() {

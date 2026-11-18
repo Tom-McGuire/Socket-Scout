@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../theme/app_theme.dart';
@@ -19,25 +19,26 @@ class Tier2StatusBanner extends StatelessWidget {
         color: AppTheme.error.withValues(alpha: 0.15),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, size: 16, color: AppTheme.error),
+            Icon(Icons.error_outline, size: 16, color: AppTheme.error),
             const SizedBox(width: 10),
             Expanded(
               child: SelectableText(
                 vm.lastError!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontFamily: 'monospace',
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                 ),
               ),
             ),
             if (vm.lastError!.contains('sudo setcap')) ...[
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.textPrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  side: const BorderSide(color: AppTheme.borderInput),
+                  side: BorderSide(color: AppTheme.borderInput),
                 ),
-                icon: const Icon(Icons.copy, size: 13, color: Colors.white70),
+                icon: Icon(Icons.copy, size: 13, color: AppTheme.textSecondary),
                 label: const Text('Copy Fix Command', style: TextStyle(fontSize: 11)),
                 onPressed: () {
                   const cmd = 'sudo setcap cap_net_raw,cap_net_admin=eip \$(which tcpdump)';
@@ -73,7 +74,7 @@ class Tier2StatusBanner extends StatelessWidget {
             Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppTheme.success,
                 shape: BoxShape.circle,
               ),
@@ -81,7 +82,7 @@ class Tier2StatusBanner extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               'LISTENING ON ${vm.selectedAdapter?.name.toUpperCase() ?? 'INTERFACE'}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.8,
@@ -92,10 +93,10 @@ class Tier2StatusBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 '•  Waiting for switch multicast frames (LLDP / CDP announce every 30-60s)  •  Elapsed: $mins:$secs  •  Frames: ${vm.framesReceived}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontFamily: 'monospace',
-                  color: Colors.white70,
+                  color: AppTheme.textSecondary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -112,11 +113,11 @@ class Tier2StatusBanner extends StatelessWidget {
                 ),
                 child: Text(
                   'Connected: ${vm.latestDiscovery!.switchHostname} [${vm.latestDiscovery!.portId}]',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'monospace',
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
               ),

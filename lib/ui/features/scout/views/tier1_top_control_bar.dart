@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../../domain/models/network_adapter_info.dart';
@@ -11,19 +11,27 @@ import 'dialogs/device_library_dialog.dart';
 /// Tier-1 Top Control Bar conforming strictly to the Network Suite
 /// 5-Zone Standardization Specification (52px fixed height, canonical layout).
 class Tier1TopControlBar extends StatelessWidget {
-  const Tier1TopControlBar({super.key});
+  const Tier1TopControlBar({
+    super.key,
+    this.zone2Key,
+    this.zone3Key,
+  });
+
+  final GlobalKey? zone2Key;
+  final GlobalKey? zone3Key;
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<SocketScoutViewModel>();
+    final isDemo = vm.isDemoMode;
 
     return Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
         border: Border(
-          bottom: BorderSide(color: Color(0xFF2C2C2C), width: 1),
+          bottom: BorderSide(color: AppTheme.border, width: 1),
         ),
       ),
       child: Row(
@@ -50,7 +58,7 @@ class Tier1TopControlBar extends StatelessWidget {
                       color: AppTheme.primaryAccent.withValues(alpha: 0.3),
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.hub,
                     size: 18,
                     color: AppTheme.primaryAccent,
@@ -60,7 +68,7 @@ class Tier1TopControlBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          const Column(
+          Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -70,14 +78,14 @@ class Tier1TopControlBar extends StatelessWidget {
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.8,
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                 ),
               ),
               Text(
                 'Switch Port Identifier (LLDP / CDP)',
                 style: TextStyle(
                   fontSize: 10,
-                  color: Colors.white54,
+                  color: AppTheme.textSecondary,
                 ),
               ),
             ],
@@ -85,68 +93,96 @@ class Tier1TopControlBar extends StatelessWidget {
           const SizedBox(width: 16),
 
           // ==================== ZONE 2: INTERFACE & TARGET ====================
-          Container(
-            height: 32,
-            width: 220,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: AppTheme.inputFill,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppTheme.borderInput),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.settings_ethernet, size: 16, color: Colors.white70),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<NetworkAdapterInfo>(
-                      value: vm.selectedAdapter,
-                      dropdownColor: AppTheme.surfaceContainer,
-                      isDense: true,
-                      isExpanded: true,
-                      icon: const Icon(Icons.arrow_drop_down, size: 18),
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        color: Colors.white,
-                      ),
-                      items: vm.adapters.map((adapter) {
-                        return DropdownMenuItem<NetworkAdapterInfo>(
-                          value: adapter,
-                          child: Text(
-                            adapter.label,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: vm.isListening ? null : (a) => vm.selectAdapter(a),
-                    ),
-                  ),
+          Row(
+            key: zone2Key,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 32,
+                width: 220,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceHigh,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.inputBorder),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            tooltip: 'Refresh Interfaces',
-            icon: const Icon(Icons.refresh, size: 16, color: Colors.white60),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-            onPressed: vm.isListening ? null : () => vm.refreshAdapters(),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.settings_ethernet,
+                      size: 16,
+                      color: AppTheme.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<NetworkAdapterInfo>(
+                          value: vm.adapters.contains(vm.selectedAdapter)
+                              ? vm.selectedAdapter
+                              : null,
+                          dropdownColor: AppTheme.surfaceElevated,
+                          isDense: true,
+                          isExpanded: true,
+                          icon: Icon(
+                            Icons.arrow_drop_down,
+                            size: 18,
+                            color: AppTheme.textSecondary,
+                          ),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                            color: AppTheme.textPrimary,
+                          ),
+                          items: vm.adapters.map((adapter) {
+                            return DropdownMenuItem<NetworkAdapterInfo>(
+                              value: adapter,
+                              child: Text(
+                                adapter.label,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged:
+                              vm.isListening ? null : (a) => vm.selectAdapter(a),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Refresh Interfaces',
+                icon: Icon(
+                  Icons.refresh,
+                  size: 16,
+                  color: AppTheme.textSecondary,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                onPressed: vm.isListening ? null : () => vm.refreshAdapters(),
+              ),
+            ],
           ),
           const SizedBox(width: 12),
 
           // ==================== ZONE 3: PRIMARY ACTIONS ====================
           FilledButton.icon(
+            key: zone3Key,
             onPressed: () => vm.toggleListening(),
             style: FilledButton.styleFrom(
-              backgroundColor: vm.isListening
-                  ? const Color(0xFFEF4444) // Active Red
-                  : const Color(0xFF10B981), // Idle Emerald Green (from ARP Scout)
+              backgroundColor:
+                  vm.isListening ? AppTheme.error : AppTheme.success,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
             icon: Icon(
               vm.isListening ? Icons.stop : Icons.play_arrow,
@@ -173,7 +209,9 @@ class Tier1TopControlBar extends StatelessWidget {
                 final count = await vm.importPcapFile(file);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Imported $count L2 switch announcements')),
+                    SnackBar(
+                      content: Text('Imported $count L2 switch announcements'),
+                    ),
                   );
                 }
               }
@@ -181,8 +219,12 @@ class Tier1TopControlBar extends StatelessWidget {
             icon: const Icon(Icons.folder_open, size: 15),
             label: const Text('Open PCAP', style: TextStyle(fontSize: 11)),
             style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.textPrimary,
+              side: BorderSide(color: AppTheme.inputBorder),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -193,30 +235,47 @@ class Tier1TopControlBar extends StatelessWidget {
             icon: const Icon(Icons.devices, size: 15),
             label: const Text('Device Library', style: TextStyle(fontSize: 11)),
             style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.textPrimary,
+              side: BorderSide(color: AppTheme.inputBorder),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
           const SizedBox(width: 8),
 
-          // Load Demo Button
+          // Load Demo / Exit Demo Button
           OutlinedButton.icon(
-            onPressed: vm.isListening
+            onPressed: (!isDemo && vm.isListening)
                 ? null
-                : () {
-                    vm.loadDemoData();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Injected Cisco, Netgear & Aruba L2 discovery demo packets'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-            icon: const Icon(Icons.play_circle_outline, size: 15),
-            label: const Text('Load Demo', style: TextStyle(fontSize: 11)),
+                : (isDemo
+                    ? () => vm.endDemoWalkthrough()
+                    : () => vm.startDemoWalkthrough()),
+            icon: Icon(
+              isDemo ? Icons.stop_circle_outlined : Icons.play_circle_outline,
+              size: 15,
+              color: isDemo ? AppTheme.warning : null,
+            ),
+            label: Text(
+              isDemo ? 'Exit Demo' : 'Load Demo',
+              style: TextStyle(
+                fontSize: 11,
+                color: isDemo ? AppTheme.warning : null,
+                fontWeight: isDemo ? FontWeight.w600 : null,
+              ),
+            ),
             style: OutlinedButton.styleFrom(
+              foregroundColor: isDemo ? AppTheme.warning : AppTheme.textPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              side: BorderSide(
+                color: isDemo
+                    ? AppTheme.warning.withValues(alpha: 0.8)
+                    : AppTheme.inputBorder,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -229,9 +288,13 @@ class Tier1TopControlBar extends StatelessWidget {
             icon: const Icon(Icons.delete_sweep_outlined, size: 15),
             label: const Text('Clear', style: TextStyle(fontSize: 11)),
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red.shade300,
+              foregroundColor:
+                  AppTheme.isDark ? Colors.red.shade300 : AppTheme.error,
+              side: BorderSide(color: AppTheme.inputBorder),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -239,6 +302,7 @@ class Tier1TopControlBar extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: 'Export',
             enabled: vm.totalDiscoveriesCount > 0,
+            color: AppTheme.surfaceElevated,
             onSelected: (val) {
               if (val == 'csv') {
                 final text = vm.exportCsv();
@@ -256,18 +320,30 @@ class Tier1TopControlBar extends StatelessWidget {
                 final text = vm.exportReport();
                 Clipboard.setData(ClipboardData(text: text));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Engineering Report copied to clipboard')),
+                  const SnackBar(
+                    content: Text('Engineering Report copied to clipboard'),
+                  ),
                 );
               }
             },
-            itemBuilder: (ctx) => const [
+            itemBuilder: (ctx) => [
               PopupMenuItem(
                 value: 'report',
                 child: Row(
                   children: [
-                    Icon(Icons.description, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text('Copy Engineering Report (Text)', style: TextStyle(fontSize: 12)),
+                    Icon(
+                      Icons.description,
+                      size: 16,
+                      color: AppTheme.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Copy Engineering Report (Text)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -275,9 +351,19 @@ class Tier1TopControlBar extends StatelessWidget {
                 value: 'csv',
                 child: Row(
                   children: [
-                    Icon(Icons.table_chart, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text('Copy CSV to Clipboard', style: TextStyle(fontSize: 12)),
+                    Icon(
+                      Icons.table_chart,
+                      size: 16,
+                      color: AppTheme.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Copy CSV to Clipboard',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -285,9 +371,15 @@ class Tier1TopControlBar extends StatelessWidget {
                 value: 'json',
                 child: Row(
                   children: [
-                    Icon(Icons.code, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text('Copy JSON to Clipboard', style: TextStyle(fontSize: 12)),
+                    Icon(Icons.code, size: 16, color: AppTheme.textSecondary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Copy JSON to Clipboard',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -296,15 +388,35 @@ class Tier1TopControlBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFF2C2C2C)),
+                border: Border.all(color: AppTheme.inputBorder),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.download, size: 15, color: Colors.white70),
-                  SizedBox(width: 6),
-                  Text('Export', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                  Icon(Icons.arrow_drop_down, size: 14, color: Colors.white70),
+                  Icon(
+                    Icons.download,
+                    size: 15,
+                    color: vm.totalDiscoveriesCount > 0
+                        ? AppTheme.textPrimary
+                        : AppTheme.textMuted,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Export',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: vm.totalDiscoveriesCount > 0
+                          ? AppTheme.textPrimary
+                          : AppTheme.textMuted,
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    size: 14,
+                    color: vm.totalDiscoveriesCount > 0
+                        ? AppTheme.textSecondary
+                        : AppTheme.textMuted,
+                  ),
                 ],
               ),
             ),

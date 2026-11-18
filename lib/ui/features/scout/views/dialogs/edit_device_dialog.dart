@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:network_suite_shared/network_suite_shared.dart';
 import 'package:socket_scout/domain/models/switch_port_discovery.dart';
 import 'package:socket_scout/ui/theme/app_theme.dart';
@@ -259,13 +259,26 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
             Expanded(
               child: Text(
                 'Saved switch "$name" ($normMac) to Shared Device Library',
+                style: const TextStyle(color: Colors.white),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF10B981),
+        backgroundColor: AppTheme.success,
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildFieldLabel(String label) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0.5,
+        color: AppTheme.textSecondary,
       ),
     );
   }
@@ -273,22 +286,23 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.existing != null;
+    final hintStyle = TextStyle(fontSize: 11, color: AppTheme.textMuted);
 
     return AlertDialog(
-      backgroundColor: AppTheme.surfaceContainer,
+      backgroundColor: AppTheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppTheme.border),
+        side: BorderSide(color: AppTheme.border),
       ),
       title: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.2),
+              color: AppTheme.success.withValues(alpha: AppTheme.isDark ? 0.2 : 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Icon(Icons.hub_outlined, size: 18, color: Color(0xFF10B981)),
+            child: Icon(Icons.hub_outlined, size: 18, color: AppTheme.success),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -297,16 +311,20 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
               children: [
                 Text(
                   isEditing ? 'Edit Device in Library' : 'Add Switch to Shared Library',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
+                Text(
                   'Identifies this hardware switch across all Network Suite apps',
-                  style: TextStyle(fontSize: 11, color: Colors.white54, fontWeight: FontWeight.normal),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
               ],
             ),
@@ -323,24 +341,20 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // MAC Address
-                const Text(
-                  'MAC / CHASSIS ID',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: Colors.white70,
-                  ),
-                ),
+                _buildFieldLabel('MAC / CHASSIS ID'),
                 const SizedBox(height: 4),
                 TextFormField(
                   controller: _macCtrl,
                   enabled: !isEditing,
-                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: isEditing ? AppTheme.textMuted : AppTheme.textPrimary,
+                  ),
+                  decoration: InputDecoration(
                     hintText: 'AA:BB:CC:DD:EE:FF',
-                    hintStyle: TextStyle(fontSize: 11, color: Colors.white38),
-                    prefixIcon: Icon(Icons.fingerprint, size: 16, color: Colors.white54),
+                    hintStyle: hintStyle,
+                    prefixIcon: Icon(Icons.fingerprint, size: 16, color: AppTheme.textSecondary),
                   ),
                   validator: (val) {
                     if (val == null || val.trim().isEmpty) {
@@ -355,24 +369,16 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
                 const SizedBox(height: 12),
 
                 // Friendly Name
-                const Text(
-                  'FRIENDLY DEVICE NAME',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: Colors.white70,
-                  ),
-                ),
+                _buildFieldLabel('FRIENDLY DEVICE NAME'),
                 const SizedBox(height: 4),
                 TextFormField(
                   controller: _nameCtrl,
                   autofocus: true,
-                  style: const TextStyle(fontSize: 12),
-                  decoration: const InputDecoration(
+                  style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+                  decoration: InputDecoration(
                     hintText: 'e.g. Core Switch Rack 1, Floor 2 Distribution',
-                    hintStyle: TextStyle(fontSize: 11, color: Colors.white38),
-                    prefixIcon: Icon(Icons.label_outline, size: 16, color: Colors.white54),
+                    hintStyle: hintStyle,
+                    prefixIcon: Icon(Icons.label_outline, size: 16, color: AppTheme.textSecondary),
                   ),
                   validator: (val) {
                     if (val == null || val.trim().isEmpty) {
@@ -384,15 +390,7 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
                 const SizedBox(height: 12),
 
                 // Device Category
-                const Text(
-                  'DEVICE CATEGORY',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: Colors.white70,
-                  ),
-                ),
+                _buildFieldLabel('DEVICE CATEGORY'),
                 const SizedBox(height: 4),
                 Container(
                   height: 38,
@@ -407,10 +405,11 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
                       value: _categories.any((c) => c.key == _selectedCategory)
                           ? _selectedCategory
                           : (_categories.isNotEmpty ? _categories.first.key : null),
-                      dropdownColor: AppTheme.surfaceContainer,
+                      dropdownColor: AppTheme.surfaceElevated,
+                      iconEnabledColor: AppTheme.textSecondary,
                       isExpanded: true,
                       isDense: true,
-                      style: const TextStyle(fontSize: 12, color: Colors.white),
+                      style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
                       onChanged: (val) {
                         if (val != null) {
                           setState(() => _selectedCategory = val);
@@ -422,7 +421,7 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(c.icon, size: 14, color: const Color(0xFF10B981)),
+                              Icon(c.icon, size: 14, color: AppTheme.success),
                               const SizedBox(width: 8),
                               Text(c.label),
                             ],
@@ -435,45 +434,33 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
                 const SizedBox(height: 12),
 
                 // Hardware Vendor
-                const Text(
-                  'HARDWARE VENDOR',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: Colors.white70,
-                  ),
-                ),
+                _buildFieldLabel('HARDWARE VENDOR'),
                 const SizedBox(height: 4),
                 TextFormField(
                   controller: _vendorCtrl,
-                  style: const TextStyle(fontSize: 12),
-                  decoration: const InputDecoration(
+                  style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+                  decoration: InputDecoration(
                     hintText: 'e.g. Cisco Systems, Netgear, Aruba',
-                    hintStyle: TextStyle(fontSize: 11, color: Colors.white38),
-                    prefixIcon: Icon(Icons.business_outlined, size: 16, color: Colors.white54),
+                    hintStyle: hintStyle,
+                    prefixIcon: Icon(Icons.business_outlined, size: 16, color: AppTheme.textSecondary),
                   ),
                 ),
                 const SizedBox(height: 12),
 
                 // Notes
-                const Text(
-                  'NOTES & DISCOVERY METADATA',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: Colors.white70,
-                  ),
-                ),
+                _buildFieldLabel('NOTES & DISCOVERY METADATA'),
                 const SizedBox(height: 4),
                 TextFormField(
                   controller: _notesCtrl,
                   maxLines: 3,
-                  style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: AppTheme.textPrimary,
+                  ),
+                  decoration: InputDecoration(
                     hintText: 'e.g. Mgmt IP: 192.168.1.1 | Port: Gi1/0/1 | VLAN: 10',
-                    hintStyle: TextStyle(fontSize: 11, color: Colors.white38),
+                    hintStyle: hintStyle,
                   ),
                 ),
               ],
@@ -484,13 +471,13 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          child: Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
         ),
         FilledButton.icon(
           icon: const Icon(Icons.check, size: 16),
           label: const Text('Save to Device Library'),
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppTheme.success,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
           ),

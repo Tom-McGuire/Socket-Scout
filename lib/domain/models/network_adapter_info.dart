@@ -20,6 +20,8 @@ class NetworkAdapterInfo {
     displayName: 'All Interfaces (any)',
   );
 
+  bool get isAllInterfaces => name == 'any';
+
   String get label {
     final display = displayName ?? name;
     if (ipAddress != null && ipAddress!.isNotEmpty) {
