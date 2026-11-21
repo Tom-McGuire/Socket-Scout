@@ -7,7 +7,6 @@ import '../../../domain/models/switch_port_discovery.dart';
 import '../services/capture/capture_service.dart';
 import '../services/database/switch_database_service.dart';
 import '../services/generator/demo_l2_generator.dart';
-import '../services/parser/pcap_binary_reader.dart';
 
 class SwitchDiscoveryRepository {
   SwitchDiscoveryRepository({

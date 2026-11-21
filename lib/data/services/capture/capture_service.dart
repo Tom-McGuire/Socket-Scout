@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:network_suite_shared/network_suite_shared.dart';
 import '../../../domain/models/switch_port_discovery.dart';
 import '../parser/cdp_dissector.dart';
 import '../parser/lldp_dissector.dart';
-import '../parser/pcap_binary_reader.dart';
 
 enum CaptureStatus {
   idle,
@@ -39,45 +39,13 @@ class CaptureService {
   int _framesReceived = 0;
   int get framesReceived => _framesReceived;
 
-  /// Locates capture executable (tcpdump, tshark, dumpcap).
-  static Future<String?> findCaptureBinary() async {
-    if (Platform.isWindows) {
-      const candidates = [
-        r'C:\Program Files\Wireshark\dumpcap.exe',
-        r'C:\Program Files\Wireshark\tshark.exe',
-        r'C:\Program Files (x86)\Wireshark\dumpcap.exe',
-        r'C:\Program Files (x86)\Wireshark\tshark.exe',
-      ];
-      for (final p in candidates) {
-        if (File(p).existsSync()) return p;
-      }
-      try {
-        final res = await Process.run('where', ['dumpcap']);
-        if (res.exitCode == 0 && res.stdout.toString().trim().isNotEmpty) {
-          return res.stdout.toString().trim().split(RegExp(r'[\r\n]+')).first;
-        }
-      } catch (_) {}
-    } else {
-      const candidates = [
-        '/usr/bin/tcpdump',
-        '/usr/sbin/tcpdump',
-        '/usr/bin/dumpcap',
-        '/usr/bin/tshark',
-        '/usr/local/bin/tcpdump',
-        '/usr/local/bin/dumpcap',
-        '/usr/local/bin/tshark',
-      ];
-      for (final p in candidates) {
-        if (File(p).existsSync()) return p;
-      }
-      try {
-        final res = await Process.run('which', ['tcpdump']);
-        if (res.exitCode == 0 && res.stdout.toString().trim().isNotEmpty) {
-          return res.stdout.toString().trim().split(RegExp(r'[\r\n]+')).first;
-        }
-      } catch (_) {}
-    }
-    return null;
+  /// Locates capture executable (tcpdump, dumpcap, tshark).
+  static Future<String?> findCaptureBinary({
+    CaptureBinaryLocator? locator,
+  }) async {
+    final resolvedLocator = locator ?? CaptureBinaryLocator();
+    final info = await resolvedLocator.findPreferredCaptureBinary();
+    return info?.path;
   }
 
   /// Builds the BPF filter and execution arguments.

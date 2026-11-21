@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:network_suite_shared/network_suite_shared.dart';
 import 'package:socket_scout/data/services/generator/demo_l2_generator.dart';
-import 'package:socket_scout/data/services/parser/pcap_binary_reader.dart';
 
 void main() {
   group('PcapBinaryReader & StreamingPcapParser', () {
