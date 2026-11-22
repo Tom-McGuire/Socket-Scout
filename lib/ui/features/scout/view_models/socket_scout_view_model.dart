@@ -5,10 +5,12 @@ import '../../../../domain/models/discovery_filter.dart';
 import '../../../../domain/models/launch_adapter_config.dart';
 import '../../../../domain/models/network_adapter_info.dart';
 import '../../../../domain/models/switch_port_discovery.dart';
+import '../../../../domain/models/wifi_ap_discovery.dart';
 import '../../../../data/repositories/switch_discovery_repository.dart';
 import '../../../../data/services/capture/capture_service.dart';
 import '../../../../data/services/export/export_service.dart';
 import '../../../../data/services/network/network_adapter_service.dart';
+import '../../../../data/services/wifi/wifi_discovery_service.dart';
 
 class SocketScoutViewModel extends ChangeNotifier {
   SocketScoutViewModel({
@@ -37,6 +39,9 @@ class SocketScoutViewModel extends ChangeNotifier {
   bool _isDemoMode = false;
   StreamSubscription<SwitchPortDiscovery>? _discoverySub;
   StreamSubscription<CaptureStatus>? _statusSub;
+  StreamSubscription<WifiApDiscovery>? _wifiDiscoverySub;
+  StreamSubscription<WifiApDiscovery>? _wifiLiveSub;
+  StreamSubscription<WifiScoutStatus>? _wifiStatusSub;
   Timer? _elapsedTimer;
   bool _isDisposed = false;
 
@@ -55,6 +60,12 @@ class SocketScoutViewModel extends ChangeNotifier {
   NetworkAdapterInfo? _selectedAdapter;
   NetworkAdapterInfo? get selectedAdapter => _selectedAdapter;
 
+  /// True when the currently selected network adapter is a Wi-Fi interface.
+  bool get isWifiMode => _selectedAdapter?.isWifi ?? false;
+
+  bool get isWifiPermissionBlocked =>
+      isWifiMode && _repository.wifiService.isPermissionBlocked;
+
   bool _isListening = false;
   bool get isListening => _isListening;
 
@@ -70,20 +81,34 @@ class SocketScoutViewModel extends ChangeNotifier {
   SwitchPortDiscovery? _selectedDiscovery;
   SwitchPortDiscovery? get selectedDiscovery => _selectedDiscovery;
 
+  WifiApDiscovery? _selectedWifiDiscovery;
+  WifiApDiscovery? get selectedWifiDiscovery => _selectedWifiDiscovery;
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
   SwitchPortDiscovery? get latestDiscovery => _repository.latestDiscovery;
 
+  WifiApDiscovery? get latestWifiDiscovery => _repository.latestWifiDiscovery;
+
   List<SwitchPortDiscovery> get discoveries =>
       _repository.getFiltered(filter: _filter);
 
+  List<WifiApDiscovery> get wifiDiscoveries =>
+      _repository.getFilteredWifi(filter: _filter);
+
   int get totalDiscoveriesCount => _repository.inMemoryDiscoveries.length;
+
+  int get totalWifiDiscoveriesCount =>
+      _repository.inMemoryWifiDiscoveries.length;
 
   int get framesReceived => _repository.captureService.framesReceived;
 
-  String get generatedCommandLine =>
-      _repository.captureService.generatedCommandLine;
+  int get wifiPollsCompleted => _repository.wifiService.pollsCompleted;
+
+  String get generatedCommandLine => isWifiMode
+      ? _repository.wifiService.generatedCommandLine
+      : _repository.captureService.generatedCommandLine;
 
   Future<void> _init({bool skipAdapters = false}) async {
     _isLoading = true;
@@ -99,7 +124,22 @@ class SocketScoutViewModel extends ChangeNotifier {
       notifyListeners();
     });
 
+    _wifiDiscoverySub = _repository.onNewWifiDiscovery.listen((discovery) {
+      _selectedWifiDiscovery = discovery;
+      notifyListeners();
+    });
+
+    _wifiLiveSub = _repository.onWifiLiveUpdate.listen((telemetry) {
+      if (_selectedWifiDiscovery == null ||
+          _selectedWifiDiscovery!.normalizedBssid ==
+              telemetry.normalizedBssid) {
+        _selectedWifiDiscovery = telemetry;
+      }
+      notifyListeners();
+    });
+
     _statusSub = _repository.captureService.onStatusChanged.listen((status) {
+      if (isWifiMode) return;
       final running = status == CaptureStatus.listening;
       if (running != _isListening) {
         _isListening = running;
@@ -113,8 +153,26 @@ class SocketScoutViewModel extends ChangeNotifier {
       notifyListeners();
     });
 
+    _wifiStatusSub = _repository.wifiService.onStatusChanged.listen((status) {
+      if (!isWifiMode) return;
+      final running = status == WifiScoutStatus.scouting;
+      if (running != _isListening) {
+        _isListening = running;
+        if (_isListening) {
+          _startTimer();
+        } else {
+          _stopTimer();
+        }
+      }
+      _lastError = _repository.wifiService.lastError;
+      notifyListeners();
+    });
+
     if (_repository.inMemoryDiscoveries.isNotEmpty) {
       _selectedDiscovery = _repository.inMemoryDiscoveries.first;
+    }
+    if (_repository.inMemoryWifiDiscoveries.isNotEmpty) {
+      _selectedWifiDiscovery = _repository.inMemoryWifiDiscoveries.first;
     }
 
     _isLoading = false;
@@ -151,7 +209,12 @@ class SocketScoutViewModel extends ChangeNotifier {
 
   void selectAdapter(NetworkAdapterInfo? adapter) {
     if (adapter == null || _selectedAdapter == adapter) return;
+    final wasListening = _isListening;
+    if (wasListening) {
+      unawaited(stopListening());
+    }
     _selectedAdapter = adapter;
+    _lastError = null;
     notifyListeners();
   }
 
@@ -170,6 +233,22 @@ class SocketScoutViewModel extends ChangeNotifier {
     _elapsedSeconds = 0;
     notifyListeners();
 
+    if (isWifiMode) {
+      final success = await _repository.wifiService.startScouting(
+        interfaceName: _selectedAdapter!.name,
+      );
+      if (!success) {
+        _lastError = _repository.wifiService.lastError;
+        _isListening = false;
+      } else {
+        _isListening = true;
+        _lastError = _repository.wifiService.lastError;
+        _startTimer();
+      }
+      notifyListeners();
+      return;
+    }
+
     final success = await _repository.captureService.startCapture(
       interfaceName: _selectedAdapter!.name,
     );
@@ -186,6 +265,7 @@ class SocketScoutViewModel extends ChangeNotifier {
 
   Future<void> stopListening() async {
     await _repository.captureService.stopCapture();
+    await _repository.wifiService.stopScouting();
     _isListening = false;
     _stopTimer();
     notifyListeners();
@@ -205,6 +285,17 @@ class SocketScoutViewModel extends ChangeNotifier {
   }
 
   void loadDemoData() {
+    if (isWifiMode) {
+      _repository.loadWifiDemoPresets(
+        interfaceName: _selectedAdapter?.name ?? 'demo-wlan0',
+      );
+      if (_repository.latestWifiDiscovery != null) {
+        _selectedWifiDiscovery = _repository.latestWifiDiscovery;
+      }
+      notifyListeners();
+      return;
+    }
+
     _repository.loadDemoPresets();
     if (_repository.latestDiscovery != null) {
       _selectedDiscovery = _repository.latestDiscovery;
@@ -212,7 +303,7 @@ class SocketScoutViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Starts demo mode by loading in-memory demo packets and activating the guided tour.
+  /// Starts demo mode by loading in-memory demo packets/AP presets and activating the guided tour.
   void startDemoWalkthrough() {
     if (_isListening) return;
     _isDemoMode = true;
@@ -239,6 +330,11 @@ class SocketScoutViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void selectWifiDiscovery(WifiApDiscovery? discovery) {
+    _selectedWifiDiscovery = discovery;
+    notifyListeners();
+  }
+
   void setSearchQuery(String query) {
     _filter = _filter.copyWith(searchQuery: query);
     notifyListeners();
@@ -249,6 +345,15 @@ class SocketScoutViewModel extends ChangeNotifier {
       _filter = _filter.copyWith(clearProtocol: true);
     } else {
       _filter = _filter.copyWith(protocol: protocol);
+    }
+    notifyListeners();
+  }
+
+  void setWifiBandFilter(WifiBand? band) {
+    if (band == null) {
+      _filter = _filter.copyWith(clearWifiBand: true);
+    } else {
+      _filter = _filter.copyWith(wifiBand: band);
     }
     notifyListeners();
   }
@@ -269,12 +374,18 @@ class SocketScoutViewModel extends ChangeNotifier {
 
   void clearAll() {
     _isDemoMode = false;
-    _repository.clearAll();
-    _selectedDiscovery = null;
+    if (isWifiMode) {
+      _repository.clearWifiAll();
+      _selectedWifiDiscovery = null;
+    } else {
+      _repository.clearAll();
+      _selectedDiscovery = null;
+      _selectedWifiDiscovery = null;
+    }
     notifyListeners();
   }
 
-  /// Alias for clearing all captured/demo LLDP & CDP frames.
+  /// Alias for clearing all captured/demo frames or Wi-Fi roaming history.
   void clearFrames() => clearAll();
 
   /// Notifies UI when a device record or custom name is updated in the Shared Device Library.
@@ -282,9 +393,17 @@ class SocketScoutViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  String exportCsv() => ExportService.toCsv(discoveries);
-  String exportJson() => ExportService.toJson(discoveries);
-  String exportReport() => ExportService.toTextReport(discoveries);
+  String exportCsv() => isWifiMode
+      ? ExportService.wifiToCsv(wifiDiscoveries)
+      : ExportService.toCsv(discoveries);
+
+  String exportJson() => isWifiMode
+      ? ExportService.wifiToJson(wifiDiscoveries)
+      : ExportService.toJson(discoveries);
+
+  String exportReport() => isWifiMode
+      ? ExportService.wifiToTextReport(wifiDiscoveries)
+      : ExportService.toTextReport(discoveries);
 
   @override
   void dispose() {
@@ -292,6 +411,9 @@ class SocketScoutViewModel extends ChangeNotifier {
     _stopTimer();
     _discoverySub?.cancel();
     _statusSub?.cancel();
+    _wifiDiscoverySub?.cancel();
+    _wifiLiveSub?.cancel();
+    _wifiStatusSub?.cancel();
     _repository.dispose();
     super.dispose();
   }

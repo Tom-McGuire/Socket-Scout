@@ -6,6 +6,7 @@ import '../../../../domain/models/switch_port_discovery.dart';
 import '../../../theme/app_theme.dart';
 import '../view_models/socket_scout_view_model.dart';
 import 'dialogs/edit_device_dialog.dart';
+import 'wifi_workspace_view.dart';
 
 class Tier4PrimaryWorkspace extends StatelessWidget {
   const Tier4PrimaryWorkspace({
@@ -34,6 +35,13 @@ class Tier4PrimaryWorkspace extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<SocketScoutViewModel>();
+    if (vm.isWifiMode) {
+      return WifiWorkspaceView(
+        heroCardKey: heroCardKey,
+        historyTableKey: historyTableKey,
+      );
+    }
+
     final items = vm.discoveries;
 
     if (items.isEmpty) {

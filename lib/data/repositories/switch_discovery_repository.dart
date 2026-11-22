@@ -4,28 +4,44 @@ import 'package:flutter/foundation.dart';
 import 'package:network_suite_shared/network_suite_shared.dart';
 import '../../../domain/models/discovery_filter.dart';
 import '../../../domain/models/switch_port_discovery.dart';
+import '../../../domain/models/wifi_ap_discovery.dart';
 import '../services/capture/capture_service.dart';
 import '../services/database/switch_database_service.dart';
 import '../services/generator/demo_l2_generator.dart';
+import '../services/generator/demo_wifi_generator.dart';
+import '../services/wifi/wifi_discovery_service.dart';
 
 class SwitchDiscoveryRepository {
   SwitchDiscoveryRepository({
     SwitchDatabaseService? dbService,
     CaptureService? captureService,
+    WifiDiscoveryService? wifiService,
     SharedDeviceDatabase? sharedDb,
   })  : _dbService = dbService ?? SwitchDatabaseService(),
         _captureService = captureService ?? CaptureService(),
+        _wifiService = wifiService ?? WifiDiscoveryService(),
         _sharedDb = sharedDb ?? SharedDeviceDatabase.instance {
     _captureSub = _captureService.onDiscovery.listen(_handleDiscovery);
+    _wifiSub = _wifiService.onDiscovery.listen(_handleWifiDiscovery);
+    _wifiLiveSub = _wifiService.onLiveTelemetry.listen(_handleWifiLiveTelemetry);
   }
 
   final SwitchDatabaseService _dbService;
   final CaptureService _captureService;
+  final WifiDiscoveryService _wifiService;
   final SharedDeviceDatabase _sharedDb;
   StreamSubscription<SwitchPortDiscovery>? _captureSub;
+  StreamSubscription<WifiApDiscovery>? _wifiSub;
+  StreamSubscription<WifiApDiscovery>? _wifiLiveSub;
 
   final _discoveryStreamController = StreamController<SwitchPortDiscovery>.broadcast();
   Stream<SwitchPortDiscovery> get onNewDiscovery => _discoveryStreamController.stream;
+
+  final _wifiDiscoveryStreamController = StreamController<WifiApDiscovery>.broadcast();
+  Stream<WifiApDiscovery> get onNewWifiDiscovery => _wifiDiscoveryStreamController.stream;
+
+  final _wifiLiveStreamController = StreamController<WifiApDiscovery>.broadcast();
+  Stream<WifiApDiscovery> get onWifiLiveUpdate => _wifiLiveStreamController.stream;
 
   final List<SwitchPortDiscovery> _inMemoryDiscoveries = [];
   List<SwitchPortDiscovery> get inMemoryDiscoveries => List.unmodifiable(_inMemoryDiscoveries);
@@ -33,7 +49,15 @@ class SwitchDiscoveryRepository {
   SwitchPortDiscovery? _latestDiscovery;
   SwitchPortDiscovery? get latestDiscovery => _latestDiscovery;
 
+  final List<WifiApDiscovery> _inMemoryWifiDiscoveries = [];
+  List<WifiApDiscovery> get inMemoryWifiDiscoveries =>
+      List.unmodifiable(_inMemoryWifiDiscoveries);
+
+  WifiApDiscovery? _latestWifiDiscovery;
+  WifiApDiscovery? get latestWifiDiscovery => _latestWifiDiscovery;
+
   CaptureService get captureService => _captureService;
+  WifiDiscoveryService get wifiService => _wifiService;
   SwitchDatabaseService get dbService => _dbService;
   SharedDeviceDatabase get sharedDb => _sharedDb;
 
@@ -56,6 +80,13 @@ class SwitchDiscoveryRepository {
     _inMemoryDiscoveries.addAll(recents);
     if (_inMemoryDiscoveries.isNotEmpty) {
       _latestDiscovery = _inMemoryDiscoveries.first;
+    }
+
+    _inMemoryWifiDiscoveries.clear();
+    final recentWifi = _dbService.getWifiDiscoveries(limit: 500);
+    _inMemoryWifiDiscoveries.addAll(recentWifi);
+    if (_inMemoryWifiDiscoveries.isNotEmpty) {
+      _latestWifiDiscovery = _inMemoryWifiDiscoveries.first;
     }
   }
 
@@ -184,6 +215,133 @@ class SwitchDiscoveryRepository {
         _syncToSharedDatabase(discovery);
       }
     }
+    for (final wifi in _inMemoryWifiDiscoveries) {
+      if (!wifi.isDemo) {
+        _syncWifiToSharedDatabase(wifi);
+      }
+    }
+  }
+
+  /// Records a new Wi-Fi AP association or roaming event.
+  void recordWifiDiscovery(WifiApDiscovery discovery, {bool isDemo = false}) {
+    _handleWifiDiscovery(discovery, isDemo: isDemo);
+  }
+
+  void _handleWifiDiscovery(WifiApDiscovery discovery, {bool isDemo = false}) {
+    final effectiveIsDemo = isDemo || discovery.isDemo;
+    final toSave = discovery.copyWith(isDemo: effectiveIsDemo);
+
+    final insertedId = _dbService.insertWifiDiscovery(toSave);
+    final saved = toSave.copyWith(id: insertedId > 0 ? insertedId : null);
+
+    // Demo data is strictly ignored and never synced to the Shared Device Database.
+    if (!effectiveIsDemo) {
+      _syncWifiToSharedDatabase(saved);
+    }
+
+    _inMemoryWifiDiscoveries.insert(0, saved);
+    _latestWifiDiscovery = saved;
+    if (!_wifiDiscoveryStreamController.isClosed) {
+      _wifiDiscoveryStreamController.add(saved);
+    }
+  }
+
+  void _handleWifiLiveTelemetry(WifiApDiscovery telemetry) {
+    if (_latestWifiDiscovery != null &&
+        _latestWifiDiscovery!.normalizedBssid == telemetry.normalizedBssid) {
+      final updated = telemetry.copyWith(
+        id: _latestWifiDiscovery!.id,
+        isDemo: _latestWifiDiscovery!.isDemo,
+      );
+      _latestWifiDiscovery = updated;
+      if (_inMemoryWifiDiscoveries.isNotEmpty &&
+          _inMemoryWifiDiscoveries.first.normalizedBssid ==
+              telemetry.normalizedBssid) {
+        _inMemoryWifiDiscoveries[0] = updated;
+      }
+      if (!_wifiLiveStreamController.isClosed) {
+        _wifiLiveStreamController.add(updated);
+      }
+    }
+  }
+
+  /// Synchronizes a genuine Wi-Fi AP discovery into the Network Suite Shared Device Database
+  /// (`shared_devices.db`) marked with `deviceType: 'ap'`.
+  void _syncWifiToSharedDatabase(WifiApDiscovery discovery) {
+    // Explicit guard: Demo data is strictly ignored and must not touch the shared database.
+    if (discovery.isDemo) {
+      return;
+    }
+
+    if (!_sharedDb.isInitialized) {
+      return;
+    }
+
+    final rawMac = discovery.bssid;
+    if (!SharedDevice.isValidMac(rawMac)) {
+      return;
+    }
+
+    final normalizedMac = SharedDevice.normalizeMac(rawMac);
+    final vendor = discovery.resolvedVendor;
+
+    final notesParts = <String>[];
+    if (discovery.ssid.trim().isNotEmpty) {
+      notesParts.add('SSID: ${discovery.ssid.trim()}');
+    }
+    if (discovery.band != WifiBand.unknown) {
+      notesParts.add('Band: ${discovery.band.label}');
+    }
+    if (discovery.channel != null) {
+      notesParts.add('Ch: ${discovery.channel}');
+    }
+    if (discovery.securityType != null &&
+        discovery.securityType!.trim().isNotEmpty) {
+      notesParts.add('Security: ${discovery.securityType!.trim()}');
+    }
+    if (discovery.wifiStandard != null &&
+        discovery.wifiStandard!.trim().isNotEmpty) {
+      notesParts.add('PHY: ${discovery.wifiStandard!.trim()}');
+    }
+    notesParts.add('Via: Wi-Fi AP Scout');
+    final notes = notesParts.join(' | ');
+
+    try {
+      final existing = _sharedDb.getDeviceByMac(normalizedMac);
+      final apHost = discovery.apHostname?.trim();
+      final hasApHost = apHost != null && apHost.isNotEmpty;
+      final defaultName = hasApHost
+          ? apHost
+          : (discovery.ssid.trim().isNotEmpty &&
+                  discovery.ssid != '<Hidden SSID>'
+              ? 'AP ${discovery.ssid.trim()} ($normalizedMac)'
+              : 'Access Point $normalizedMac');
+
+      // Preserve any existing custom name configured by the user
+      final devName = (existing != null && existing.hasCustomName)
+          ? existing.name
+          : defaultName;
+
+      final devVendor =
+          (existing?.vendor != null && existing!.vendor!.isNotEmpty)
+              ? existing.vendor
+              : vendor;
+
+      final device = SharedDevice(
+        macAddress: normalizedMac,
+        name: devName,
+        vendor: devVendor,
+        deviceType: DeviceCategory.accessPoint.key, // 'ap'
+        notes: notes,
+        sourceApp: 'socket_scout',
+        createdAt: existing?.createdAt ?? DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      _sharedDb.upsertDevice(device);
+    } catch (e) {
+      debugPrint('SwitchDiscoveryRepository: Wi-Fi shared DB upsert error: $e');
+    }
   }
 
   /// Retrieves a device from the shared database by MAC, if initialized and present.
@@ -219,6 +377,14 @@ class SwitchDiscoveryRepository {
     }
   }
 
+  /// Injects built-in Wi-Fi AP demo presets for immediate verification without a live AP.
+  void loadWifiDemoPresets({String interfaceName = 'demo-wlan0'}) {
+    final presets = DemoWifiGenerator.presets(interfaceName: interfaceName);
+    for (final preset in presets) {
+      _handleWifiDiscovery(preset.copyWith(isDemo: true), isDemo: true);
+    }
+  }
+
   /// Parses an imported PCAP or PCAPNG capture file.
   Future<int> importPcapFile(File file) async {
     final rawPackets = PcapBinaryReader.parseFile(file);
@@ -246,16 +412,38 @@ class SwitchDiscoveryRepository {
     return _inMemoryDiscoveries.where((item) => filter.matches(item)).toList();
   }
 
+  List<WifiApDiscovery> getFilteredWifi({DiscoveryFilter? filter}) {
+    if (filter == null || !filter.isActive) {
+      return List.unmodifiable(_inMemoryWifiDiscoveries);
+    }
+    return _inMemoryWifiDiscoveries
+        .where((item) => filter.matchesWifi(item))
+        .toList();
+  }
+
+  void clearWifiAll() {
+    _dbService.clearWifiDiscoveries();
+    _inMemoryWifiDiscoveries.clear();
+    _latestWifiDiscovery = null;
+  }
+
   void clearAll() {
     _dbService.clearAll();
     _inMemoryDiscoveries.clear();
     _latestDiscovery = null;
+    _inMemoryWifiDiscoveries.clear();
+    _latestWifiDiscovery = null;
   }
 
   void dispose() {
     _captureSub?.cancel();
+    _wifiSub?.cancel();
+    _wifiLiveSub?.cancel();
     _captureService.dispose();
+    _wifiService.dispose();
     _dbService.close();
     _discoveryStreamController.close();
+    _wifiDiscoveryStreamController.close();
+    _wifiLiveStreamController.close();
   }
 }

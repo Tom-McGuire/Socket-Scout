@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../domain/models/switch_port_discovery.dart';
+import '../../../../domain/models/wifi_ap_discovery.dart';
 import '../../../../data/services/capture/capture_service.dart';
 import '../../../theme/app_theme.dart';
 import '../view_models/socket_scout_view_model.dart';
 import 'dialogs/edit_device_dialog.dart';
+import 'wifi_workspace_view.dart';
 
 class Tier5DetailInspector extends StatefulWidget {
   const Tier5DetailInspector({super.key});
@@ -48,7 +50,9 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<SocketScoutViewModel>();
+    final isWifi = vm.isWifiMode;
     final selected = vm.selectedDiscovery;
+    final selectedWifi = vm.selectedWifiDiscovery;
 
     return Container(
       decoration: BoxDecoration(
@@ -61,7 +65,27 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
         mainAxisSize: MainAxisSize.min,
         children: [
           // Inspector Body (Height 230px if selected)
-          if (selected != null)
+          if (isWifi && selectedWifi != null)
+            SizedBox(
+              height: 230,
+              child: Column(
+                children: [
+                  _buildWifiInspectorHeader(context, selectedWifi, vm),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildWifiSummaryTab(context, selectedWifi),
+                        _buildWifiNeighborsTab(context, selectedWifi),
+                        _buildWifiRawTelemetryTab(context, selectedWifi),
+                        _buildCliPreviewTab(context, vm),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (!isWifi && selected != null)
             SizedBox(
               height: 230,
               child: Column(
@@ -452,9 +476,13 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
   }
 
   Widget _buildCliPreviewTab(BuildContext context, SocketScoutViewModel vm) {
+    final isWifi = vm.isWifiMode;
+    final defaultCmd = isWifi
+        ? 'iw dev ${vm.selectedAdapter?.name ?? 'wlan0'} link'
+        : 'tcpdump -i ${vm.selectedAdapter?.name ?? 'eth0'} -U -s 0 -w - "${CaptureService.bpfFilter}"';
     final cmd = vm.generatedCommandLine.isNotEmpty
         ? vm.generatedCommandLine
-        : 'tcpdump -i ${vm.selectedAdapter?.name ?? 'eth0'} -U -s 0 -w - "${CaptureService.bpfFilter}"';
+        : defaultCmd;
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -532,7 +560,9 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
             ),
             const SizedBox(height: 6),
             Text(
-              'Streams live Layer 2 multicast frames (LLDP 0x88CC & CDP 0x2000) directly into the binary dissector pipe.',
+              isWifi
+                  ? 'Queries OS wireless interface telemetry for the associated Access Point BSSID, RF band/channel, RSSI, and neighbor AP scan.'
+                  : 'Streams live Layer 2 multicast frames (LLDP 0x88CC & CDP 0x2000) directly into the binary dissector pipe.',
               style: TextStyle(fontSize: 10, color: AppTheme.textMuted),
             ),
           ],
@@ -541,7 +571,349 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
     );
   }
 
+  Widget _buildWifiInspectorHeader(
+    BuildContext context,
+    WifiApDiscovery item,
+    SocketScoutViewModel vm,
+  ) {
+    final timeStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(item.timestamp);
+    final bColor = WifiWorkspaceView.bandColor(item.band);
+
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHigh,
+        border: Border(
+          bottom: BorderSide(color: AppTheme.border, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: bColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: bColor.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              item.band.label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: bColor,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${item.displayName}  •  ${item.ssid}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            timeStr,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: AppTheme.textMuted,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicatorColor: AppTheme.primaryAccent,
+              labelColor: AppTheme.textPrimary,
+              unselectedLabelColor: AppTheme.textMuted,
+              labelStyle:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+              tabs: [
+                const Tab(text: 'SUMMARY'),
+                Tab(text: 'NEIGHBOR APs (${item.neighbors.length})'),
+                const Tab(text: 'RAW TELEMETRY'),
+                const Tab(text: 'CLI COMMAND'),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Add / Edit AP in Shared Device Library',
+            icon: Icon(
+              Icons.bookmark_add_outlined,
+              size: 15,
+              color: AppTheme.success,
+            ),
+            onPressed: () {
+              EditDeviceDialog.showForWifiDiscovery(
+                context,
+                item,
+                onSaved: vm.notifyDeviceUpdated,
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Copy AP Details',
+            icon: Icon(Icons.copy, size: 14, color: AppTheme.textSecondary),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: item.summaryDescription));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Copied AP summary to clipboard'),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Close Inspector',
+            icon: Icon(Icons.close, size: 15, color: AppTheme.textMuted),
+            onPressed: () => vm.selectWifiDiscovery(null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWifiSummaryTab(BuildContext context, WifiApDiscovery item) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 10,
+        children: [
+          _buildFieldCard('AP Display Name', item.displayName,
+              isSelectable: true),
+          _buildFieldCard(
+            'BSSID (AP Radio MAC)',
+            item.normalizedBssid,
+            isSelectable: true,
+            isMono: true,
+            highlightColor: AppTheme.primaryAccent,
+          ),
+          _buildFieldCard('SSID', item.ssid, isSelectable: true),
+          _buildFieldCard(
+            'Hardware Vendor (OUI)',
+            item.resolvedVendor ?? 'Unknown',
+            isSelectable: true,
+          ),
+          if (item.apHostname != null && item.apHostname!.isNotEmpty)
+            _buildFieldCard('Vendor-IE AP Hostname', item.apHostname!,
+                isSelectable: true),
+          _buildFieldCard(
+            'RF Channel & Band',
+            item.formattedChannel,
+            highlightColor: WifiWorkspaceView.bandColor(item.band),
+          ),
+          if (item.frequencyMhz != null)
+            _buildFieldCard('Center Frequency', '${item.frequencyMhz} MHz',
+                isMono: true),
+          _buildFieldCard(
+            'Signal Strength (RSSI)',
+            '${item.formattedRssi} (${item.signalQualityLabel})',
+            isMono: true,
+            highlightColor: WifiWorkspaceView.rssiColor(item.rssiDbm),
+          ),
+          if (item.noiseDbm != null)
+            _buildFieldCard('Noise Floor', '${item.noiseDbm} dBm',
+                isMono: true),
+          if (item.effectiveSnrDb != null)
+            _buildFieldCard('Signal-to-Noise (SNR)', '${item.effectiveSnrDb} dB',
+                isMono: true),
+          _buildFieldCard('PHY Link Speed', item.formattedLinkSpeed,
+              isMono: true),
+          if (item.wifiStandard != null)
+            _buildFieldCard('Wi-Fi Standard', item.wifiStandard!),
+          if (item.securityType != null)
+            _buildFieldCard('Security', item.securityType!),
+          _buildFieldCard(
+            'Shared Device DB',
+            item.isDemo
+                ? 'Demo preset (ignored by Shared Device DB)'
+                : 'Stored as Access Point (synced to Network Suite)',
+            highlightColor: item.isDemo ? AppTheme.warning : AppTheme.success,
+          ),
+          _buildFieldCard('Wi-Fi Adapter', item.interfaceName, isMono: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWifiNeighborsTab(BuildContext context, WifiApDiscovery item) {
+    if (item.neighbors.isEmpty) {
+      return Center(
+        child: Text(
+          'No neighbor Access Points recorded for this scan.',
+          style: TextStyle(color: AppTheme.textMuted),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(8),
+      itemCount: item.neighbors.length,
+      separatorBuilder: (ctx, idx) =>
+          Divider(height: 1, color: AppTheme.border),
+      itemBuilder: (ctx, idx) {
+        final n = item.neighbors[idx];
+        final bColor = WifiWorkspaceView.bandColor(n.band);
+        final sigColor = WifiWorkspaceView.rssiColor(n.rssiDbm);
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 68,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: bColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    n.band.label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: bColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 145,
+                child: SelectableText(
+                  n.normalizedBssid,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: n.isConnected
+                        ? AppTheme.success
+                        : AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 150,
+                child: Text(
+                  n.apHostname ?? n.ssid ?? '<Hidden SSID>',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 70,
+                child: Text(
+                  n.channel != null ? 'Ch ${n.channel}' : '—',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 85,
+                child: Text(
+                  n.rssiDbm != null ? '${n.rssiDbm} dBm' : '—',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: sigColor,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  n.resolvedVendor ?? n.securityType ?? '',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (n.isConnected)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppTheme.success.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    'CONNECTED',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.success,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildWifiRawTelemetryTab(
+    BuildContext context,
+    WifiApDiscovery item,
+  ) {
+    if (item.rawTelemetry.isEmpty) {
+      return Center(
+        child: Text(
+          'No raw Wi-Fi telemetry recorded for this entry.',
+          style: TextStyle(color: AppTheme.textMuted),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        color: AppTheme.isDark ? const Color(0xFF0D1117) : AppTheme.surfaceHigh,
+        child: SelectableText(
+          item.rawTelemetry,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 11,
+            height: 1.35,
+            color: AppTheme.isDark
+                ? const Color(0xFFC9D1D9)
+                : AppTheme.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatusBar(BuildContext context, SocketScoutViewModel vm) {
+    final isWifi = vm.isWifiMode;
     return Container(
       height: 26,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -557,7 +929,11 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
           mainAxisSize: MainAxisSize.min,
           children: [
             // Adapter Indicator
-            Icon(Icons.network_check, size: 13, color: AppTheme.textMuted),
+            Icon(
+              isWifi ? Icons.wifi : Icons.network_check,
+              size: 13,
+              color: isWifi ? AppTheme.primaryAccent : AppTheme.textMuted,
+            ),
             const SizedBox(width: 6),
             Text(
               'Adapter: ${vm.selectedAdapter?.name ?? 'None'}',
@@ -574,7 +950,9 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
 
             // Total Discoveries
             Text(
-              'Showing ${vm.discoveries.length} of ${vm.totalDiscoveriesCount} switch announcements',
+              isWifi
+                  ? 'Showing ${vm.wifiDiscoveries.length} of ${vm.totalWifiDiscoveriesCount} AP associations'
+                  : 'Showing ${vm.discoveries.length} of ${vm.totalDiscoveriesCount} switch announcements',
               style: TextStyle(
                 fontSize: 11,
                 color: AppTheme.textSecondary,
@@ -585,9 +963,11 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
             VerticalDivider(width: 1, color: AppTheme.border),
             const SizedBox(width: 14),
 
-            // Packets count
+            // Packets / Polls count
             Text(
-              'Frames received: ${vm.framesReceived}',
+              isWifi
+                  ? 'Polls: ${vm.wifiPollsCompleted}'
+                  : 'Frames received: ${vm.framesReceived}',
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 11,
@@ -613,7 +993,9 @@ class _Tier5DetailInspectorState extends State<Tier5DetailInspector>
                 ),
               ),
               child: Text(
-                vm.isListening ? 'LISTENING' : 'IDLE',
+                vm.isListening
+                    ? (isWifi ? 'SCOUTING' : 'LISTENING')
+                    : 'IDLE',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,

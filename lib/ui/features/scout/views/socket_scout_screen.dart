@@ -46,6 +46,49 @@ class _SocketScoutScreenState extends State<SocketScoutScreen>
   }
 
   List<GuidedTourStep> _buildTourSteps(SocketScoutViewModel vm) {
+    if (vm.isWifiMode) {
+      void ensureFirstWifiSelected() {
+        if (vm.selectedWifiDiscovery == null && vm.wifiDiscoveries.isNotEmpty) {
+          vm.selectWifiDiscovery(vm.wifiDiscoveries.first);
+        }
+      }
+
+      return [
+        GuidedTourStep(
+          targetKey: _zone2Key,
+          title: 'Zone 2: Wi-Fi Network Adapter Selector',
+          description:
+              'Selecting a wireless adapter automatically switches Socket Scout into Wi-Fi Access Point Scout mode. Switch back to an Ethernet NIC anytime for wired LLDP/CDP.',
+        ),
+        GuidedTourStep(
+          targetKey: _zone3Key,
+          title: 'Zone 3: Start Wi-Fi AP Scouting',
+          description:
+              'Poll OS wireless telemetry to identify the connected Access Point BSSID, SSID, band/channel, RSSI signal strength, PHY speed, and roaming transitions.',
+        ),
+        GuidedTourStep(
+          targetKey: _heroCardKey,
+          title: 'Active Access Point Summary Card',
+          description:
+              'Immediately inspect the connected AP display name, BSSID radio MAC, SSID, RSSI signal quality, RF band/channel width, PHY link speed, and security mode.',
+        ),
+        GuidedTourStep(
+          targetKey: _historyTableKey,
+          title: 'Wi-Fi Roaming History Table',
+          description:
+              'Track every Access Point association and roaming event as you walk the site. Right-click any AP to copy RF details or save a custom AP name to the Shared Device Library.',
+          onStepEnter: ensureFirstWifiSelected,
+        ),
+        GuidedTourStep(
+          targetKey: _inspectorKey,
+          title: 'RF & Neighbor AP Inspector',
+          description:
+              'Review full RF Summary fields, nearby Neighbor APs for roaming diagnostics, raw OS telemetry, and the CLI command, or export CSV/JSON/Engineering Reports.',
+          onStepEnter: ensureFirstWifiSelected,
+        ),
+      ];
+    }
+
     void ensureFirstSelected() {
       if (vm.selectedDiscovery == null && vm.discoveries.isNotEmpty) {
         vm.selectDiscovery(vm.discoveries.first);

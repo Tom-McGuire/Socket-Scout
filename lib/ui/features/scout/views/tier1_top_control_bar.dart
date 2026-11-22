@@ -24,6 +24,10 @@ class Tier1TopControlBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<SocketScoutViewModel>();
     final isDemo = vm.isDemoMode;
+    final isWifi = vm.isWifiMode;
+    final hasItems = isWifi
+        ? vm.totalWifiDiscoveriesCount > 0
+        : vm.totalDiscoveriesCount > 0;
 
     return Container(
       height: 52,
@@ -82,7 +86,9 @@ class Tier1TopControlBar extends StatelessWidget {
                 ),
               ),
               Text(
-                'Switch Port Identifier (LLDP / CDP)',
+                isWifi
+                    ? 'Wi-Fi Access Point Scout (BSSID / RF)'
+                    : 'Switch Port Identifier (LLDP / CDP)',
                 style: TextStyle(
                   fontSize: 10,
                   color: AppTheme.textSecondary,
@@ -109,9 +115,11 @@ class Tier1TopControlBar extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.settings_ethernet,
+                      isWifi ? Icons.wifi : Icons.settings_ethernet,
                       size: 16,
-                      color: AppTheme.textSecondary,
+                      color: isWifi
+                          ? AppTheme.primaryAccent
+                          : AppTheme.textSecondary,
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -133,9 +141,9 @@ class Tier1TopControlBar extends StatelessWidget {
                             fontSize: 12,
                             color: AppTheme.textPrimary,
                           ),
-                          items: vm.adapters.map((adapter) {
-                            return DropdownMenuItem<NetworkAdapterInfo>(
-                              value: adapter,
+                          selectedItemBuilder: (ctx) => vm.adapters.map((adapter) {
+                            return Align(
+                              alignment: Alignment.centerLeft,
                               child: Text(
                                 adapter.label,
                                 overflow: TextOverflow.ellipsis,
@@ -144,6 +152,36 @@ class Tier1TopControlBar extends StatelessWidget {
                                   fontSize: 12,
                                   color: AppTheme.textPrimary,
                                 ),
+                              ),
+                            );
+                          }).toList(),
+                          items: vm.adapters.map((adapter) {
+                            return DropdownMenuItem<NetworkAdapterInfo>(
+                              value: adapter,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    adapter.isWifi
+                                        ? Icons.wifi
+                                        : Icons.settings_ethernet,
+                                    size: 14,
+                                    color: adapter.isWifi
+                                        ? AppTheme.primaryAccent
+                                        : AppTheme.textSecondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      adapter.label,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        color: AppTheme.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           }).toList(),
@@ -189,7 +227,9 @@ class Tier1TopControlBar extends StatelessWidget {
               size: 17,
             ),
             label: Text(
-              vm.isListening ? 'STOP LISTENING' : 'START LISTENING',
+              vm.isListening
+                  ? (isWifi ? 'STOP SCOUTING' : 'STOP LISTENING')
+                  : (isWifi ? 'START SCOUTING' : 'START LISTENING'),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
@@ -197,37 +237,41 @@ class Tier1TopControlBar extends StatelessWidget {
           const Spacer(),
 
           // ==================== ZONE 4: ECOSYSTEM & DEMO ====================
-          // Open PCAP File Button
-          OutlinedButton.icon(
-            onPressed: () async {
-              final result = await FilePicker.pickFiles(
-                type: FileType.custom,
-                allowedExtensions: ['pcap', 'pcapng', 'cap'],
-              );
-              if (result.isNotEmpty && result.single.path != null) {
-                final file = File(result.single.path!);
-                final count = await vm.importPcapFile(file);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Imported $count L2 switch announcements'),
-                    ),
-                  );
+          // Open PCAP File Button (Wired LLDP/CDP mode)
+          if (!isWifi) ...[
+            OutlinedButton.icon(
+              onPressed: () async {
+                final result = await FilePicker.pickFiles(
+                  type: FileType.custom,
+                  allowedExtensions: ['pcap', 'pcapng', 'cap'],
+                );
+                if (result.isNotEmpty && result.single.path != null) {
+                  final file = File(result.single.path!);
+                  final count = await vm.importPcapFile(file);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text('Imported $count L2 switch announcements'),
+                      ),
+                    );
+                  }
                 }
-              }
-            },
-            icon: const Icon(Icons.folder_open, size: 15),
-            label: const Text('Open PCAP', style: TextStyle(fontSize: 11)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.textPrimary,
-              side: BorderSide(color: AppTheme.inputBorder),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
+              },
+              icon: const Icon(Icons.folder_open, size: 15),
+              label: const Text('Open PCAP', style: TextStyle(fontSize: 11)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.textPrimary,
+                side: BorderSide(color: AppTheme.inputBorder),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
 
           // Device Library Button
           OutlinedButton.icon(
@@ -282,7 +326,7 @@ class Tier1TopControlBar extends StatelessWidget {
 
           // ==================== ZONE 5: CLEAR & EXPORT ====================
           OutlinedButton.icon(
-            onPressed: (vm.isListening || vm.totalDiscoveriesCount == 0)
+            onPressed: (vm.isListening || !hasItems)
                 ? null
                 : () => vm.clearAll(),
             icon: const Icon(Icons.delete_sweep_outlined, size: 15),
@@ -301,7 +345,7 @@ class Tier1TopControlBar extends StatelessWidget {
 
           PopupMenuButton<String>(
             tooltip: 'Export',
-            enabled: vm.totalDiscoveriesCount > 0,
+            enabled: hasItems,
             color: AppTheme.surfaceElevated,
             onSelected: (val) {
               if (val == 'csv') {
@@ -396,26 +440,22 @@ class Tier1TopControlBar extends StatelessWidget {
                   Icon(
                     Icons.download,
                     size: 15,
-                    color: vm.totalDiscoveriesCount > 0
-                        ? AppTheme.textPrimary
-                        : AppTheme.textMuted,
+                    color: hasItems ? AppTheme.textPrimary : AppTheme.textMuted,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     'Export',
                     style: TextStyle(
                       fontSize: 11,
-                      color: vm.totalDiscoveriesCount > 0
-                          ? AppTheme.textPrimary
-                          : AppTheme.textMuted,
+                      color:
+                          hasItems ? AppTheme.textPrimary : AppTheme.textMuted,
                     ),
                   ),
                   Icon(
                     Icons.arrow_drop_down,
                     size: 14,
-                    color: vm.totalDiscoveriesCount > 0
-                        ? AppTheme.textSecondary
-                        : AppTheme.textMuted,
+                    color:
+                        hasItems ? AppTheme.textSecondary : AppTheme.textMuted,
                   ),
                 ],
               ),

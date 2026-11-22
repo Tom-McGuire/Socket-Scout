@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../../../domain/models/switch_port_discovery.dart';
+import '../../../../domain/models/wifi_ap_discovery.dart';
 import '../../../theme/app_theme.dart';
 import '../view_models/socket_scout_view_model.dart';
 
@@ -43,7 +44,9 @@ class _Tier3FilterToolbarState extends State<Tier3FilterToolbar> {
               controller: _searchController,
               style: TextStyle(fontSize: 12, color: AppTheme.textPrimary),
               decoration: InputDecoration(
-                hintText: 'Filter switches, ports, VLANs, IPs...',
+                hintText: vm.isWifiMode
+                    ? 'Filter APs, SSIDs, BSSIDs, channels, vendors...'
+                    : 'Filter switches, ports, VLANs, IPs...',
                 hintStyle: TextStyle(fontSize: 11, color: AppTheme.textMuted),
                 prefixIcon: Icon(Icons.search, size: 14, color: AppTheme.textSecondary),
                 prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -64,33 +67,86 @@ class _Tier3FilterToolbarState extends State<Tier3FilterToolbar> {
 
           const SizedBox(width: 16),
 
-          // Protocol Filter Chips
-          _buildProtocolChip(
-            context,
-            label: 'ALL PROTOCOLS',
-            isSelected: vm.filter.protocol == null,
-            onTap: () => vm.setProtocolFilter(null),
-          ),
-          const SizedBox(width: 6),
-          _buildProtocolChip(
-            context,
-            label: 'LLDP',
-            isSelected: vm.filter.protocol == DiscoveryProtocol.lldp,
-            accentColor: AppTheme.isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
-            onTap: () => vm.setProtocolFilter(
-              vm.filter.protocol == DiscoveryProtocol.lldp ? null : DiscoveryProtocol.lldp,
+          // Protocol or Wi-Fi Band Filter Chips
+          if (vm.isWifiMode) ...[
+            _buildProtocolChip(
+              context,
+              label: 'ALL BANDS',
+              isSelected: vm.filter.wifiBand == null,
+              onTap: () => vm.setWifiBandFilter(null),
             ),
-          ),
-          const SizedBox(width: 6),
-          _buildProtocolChip(
-            context,
-            label: 'CDP',
-            isSelected: vm.filter.protocol == DiscoveryProtocol.cdp,
-            accentColor: AppTheme.isDark ? const Color(0xFFA78BFA) : const Color(0xFF6D28D9),
-            onTap: () => vm.setProtocolFilter(
-              vm.filter.protocol == DiscoveryProtocol.cdp ? null : DiscoveryProtocol.cdp,
+            const SizedBox(width: 6),
+            _buildProtocolChip(
+              context,
+              label: '2.4 GHz',
+              isSelected: vm.filter.wifiBand == WifiBand.band24,
+              accentColor: AppTheme.isDark
+                  ? const Color(0xFFFBBF24)
+                  : const Color(0xFFB45309),
+              onTap: () => vm.setWifiBandFilter(
+                vm.filter.wifiBand == WifiBand.band24 ? null : WifiBand.band24,
+              ),
             ),
-          ),
+            const SizedBox(width: 6),
+            _buildProtocolChip(
+              context,
+              label: '5 GHz',
+              isSelected: vm.filter.wifiBand == WifiBand.band5,
+              accentColor: AppTheme.isDark
+                  ? const Color(0xFF38BDF8)
+                  : const Color(0xFF0369A1),
+              onTap: () => vm.setWifiBandFilter(
+                vm.filter.wifiBand == WifiBand.band5 ? null : WifiBand.band5,
+              ),
+            ),
+            const SizedBox(width: 6),
+            _buildProtocolChip(
+              context,
+              label: '6 GHz',
+              isSelected: vm.filter.wifiBand == WifiBand.band6,
+              accentColor: AppTheme.isDark
+                  ? const Color(0xFFA78BFA)
+                  : const Color(0xFF6D28D9),
+              onTap: () => vm.setWifiBandFilter(
+                vm.filter.wifiBand == WifiBand.band6 ? null : WifiBand.band6,
+              ),
+            ),
+          ] else ...[
+            _buildProtocolChip(
+              context,
+              label: 'ALL PROTOCOLS',
+              isSelected: vm.filter.protocol == null,
+              onTap: () => vm.setProtocolFilter(null),
+            ),
+            const SizedBox(width: 6),
+            _buildProtocolChip(
+              context,
+              label: 'LLDP',
+              isSelected: vm.filter.protocol == DiscoveryProtocol.lldp,
+              accentColor: AppTheme.isDark
+                  ? const Color(0xFF38BDF8)
+                  : const Color(0xFF0369A1),
+              onTap: () => vm.setProtocolFilter(
+                vm.filter.protocol == DiscoveryProtocol.lldp
+                    ? null
+                    : DiscoveryProtocol.lldp,
+              ),
+            ),
+            const SizedBox(width: 6),
+            _buildProtocolChip(
+              context,
+              label: 'CDP',
+              isSelected: vm.filter.protocol == DiscoveryProtocol.cdp,
+              accentColor: AppTheme.isDark
+                  ? const Color(0xFFA78BFA)
+                  : const Color(0xFF6D28D9),
+              onTap: () => vm.setProtocolFilter(
+                vm.filter.protocol == DiscoveryProtocol.cdp
+                    ? null
+                    : DiscoveryProtocol.cdp,
+              ),
+            ),
+          ],
 
           const Spacer(),
 

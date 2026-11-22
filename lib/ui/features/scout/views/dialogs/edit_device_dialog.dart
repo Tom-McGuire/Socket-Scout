@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:network_suite_shared/network_suite_shared.dart';
 import 'package:socket_scout/domain/models/switch_port_discovery.dart';
+import 'package:socket_scout/domain/models/wifi_ap_discovery.dart';
 import 'package:socket_scout/ui/theme/app_theme.dart';
 
 /// Modal dialog for adding or editing a network device's identity and custom name
@@ -164,6 +165,86 @@ class EditDeviceDialog extends StatefulWidget {
     return saved;
   }
 
+  /// Displays the edit dialog prefilled with data extracted from a discovered
+  /// Wi-Fi Access Point (BSSID & RF telemetry).
+  static Future<bool?> showForWifiDiscovery(
+    BuildContext context,
+    WifiApDiscovery discovery, {
+    VoidCallback? onSaved,
+  }) async {
+    try {
+      if (!SharedDeviceDatabase.instance.isInitialized) {
+        await SharedDeviceDatabase.instance.init();
+      }
+    } catch (e) {
+      debugPrint('EditDeviceDialog init warning: $e');
+    }
+
+    final normMac = SharedDevice.isValidMac(discovery.bssid)
+        ? SharedDevice.normalizeMac(discovery.bssid)
+        : discovery.bssid;
+
+    SharedDevice? existing;
+    if (SharedDevice.isValidMac(normMac) &&
+        SharedDeviceDatabase.instance.isInitialized) {
+      try {
+        existing = SharedDeviceDatabase.instance.getDeviceByMac(normMac);
+      } catch (_) {}
+    }
+
+    final apHost = discovery.apHostname?.trim();
+    final hasApHost = apHost != null && apHost.isNotEmpty;
+    final initialName = (existing != null && existing.hasCustomName)
+        ? existing.name
+        : (hasApHost
+            ? apHost
+            : (discovery.ssid.trim().isNotEmpty &&
+                    discovery.ssid != '<Hidden SSID>'
+                ? 'AP ${discovery.ssid.trim()} ($normMac)'
+                : 'Access Point $normMac'));
+
+    final vendor =
+        (existing?.vendor != null && existing!.vendor!.isNotEmpty)
+            ? existing.vendor
+            : discovery.resolvedVendor;
+
+    String? notes = existing?.notes;
+    if (notes == null || notes.isEmpty) {
+      final notesParts = <String>[];
+      if (discovery.ssid.trim().isNotEmpty) {
+        notesParts.add('SSID: ${discovery.ssid.trim()}');
+      }
+      if (discovery.band != WifiBand.unknown) {
+        notesParts.add('Band: ${discovery.band.label}');
+      }
+      if (discovery.channel != null) {
+        notesParts.add('Ch: ${discovery.channel}');
+      }
+      if (discovery.securityType != null &&
+          discovery.securityType!.trim().isNotEmpty) {
+        notesParts.add('Security: ${discovery.securityType!.trim()}');
+      }
+      if (discovery.wifiStandard != null &&
+          discovery.wifiStandard!.trim().isNotEmpty) {
+        notesParts.add('PHY: ${discovery.wifiStandard!.trim()}');
+      }
+      notesParts.add('Via: Wi-Fi AP Scout');
+      notes = notesParts.join(' | ');
+    }
+
+    if (!context.mounted) return null;
+    return show(
+      context,
+      existing: existing,
+      prefillMac: normMac,
+      prefillName: initialName,
+      prefillVendor: vendor,
+      prefillCategory: existing?.deviceType ?? DeviceCategory.accessPoint.key,
+      prefillNotes: notes,
+      onSaved: onSaved,
+    );
+  }
+
   @override
   State<EditDeviceDialog> createState() => _EditDeviceDialogState();
 }
@@ -250,6 +331,8 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
     widget.onSaved?.call();
     Navigator.of(context).pop(true);
 
+    final entityLabel =
+        _selectedCategory == DeviceCategory.accessPoint.key ? 'Access Point' : 'switch';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -258,7 +341,7 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Saved switch "$name" ($normMac) to Shared Device Library',
+                'Saved $entityLabel "$name" ($normMac) to Shared Device Library',
                 style: const TextStyle(color: Colors.white),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -302,7 +385,13 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
               color: AppTheme.success.withValues(alpha: AppTheme.isDark ? 0.2 : 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(Icons.hub_outlined, size: 18, color: AppTheme.success),
+            child: Icon(
+              _selectedCategory == DeviceCategory.accessPoint.key
+                  ? Icons.wifi_tethering
+                  : Icons.hub_outlined,
+              size: 18,
+              color: AppTheme.success,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -310,7 +399,11 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isEditing ? 'Edit Device in Library' : 'Add Switch to Shared Library',
+                  isEditing
+                      ? 'Edit Device in Library'
+                      : (_selectedCategory == DeviceCategory.accessPoint.key
+                          ? 'Add Access Point to Shared Library'
+                          : 'Add Switch to Shared Library'),
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -319,7 +412,9 @@ class _EditDeviceDialogState extends State<EditDeviceDialog> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Identifies this hardware switch across all Network Suite apps',
+                  _selectedCategory == DeviceCategory.accessPoint.key
+                      ? 'Identifies this Wi-Fi Access Point across all Network Suite apps'
+                      : 'Identifies this hardware switch across all Network Suite apps',
                   style: TextStyle(
                     fontSize: 11,
                     color: AppTheme.textSecondary,
